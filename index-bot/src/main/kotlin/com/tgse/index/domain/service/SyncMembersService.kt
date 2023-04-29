@@ -28,6 +28,7 @@ class SyncMembersService(
             records.forEach { record ->
                 when (record.type) {
                     TelegramService.TelegramModType.Bot, TelegramService.TelegramModType.Person -> return@forEach
+                    else -> {}
                 }
 
                  val mode = when {
