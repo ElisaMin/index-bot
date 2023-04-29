@@ -36,21 +36,21 @@ dependencies {
    implementation("org.springframework.boot:spring-boot-starter")
    annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 
-   implementation("com.google.guava:guava:30.1.1-jre")
+   implementation("com.google.guava:guava:31.1-jre")
    implementation("org.dom4j:dom4j:2.1.4")
    implementation("org.jsoup:jsoup:1.16.1")
    implementation("org.apache.commons:commons-text:1.10.0")
-   implementation("io.reactivex.rxjava3:rxjava:3.0.13")
+   implementation("io.reactivex.rxjava3:rxjava:3.1.6")
 
    // telegram
-   api("com.github.pengrad:java-telegram-bot-api:6.1.0") {
+   api("com.github.pengrad:java-telegram-bot-api:6.7.0") {
        exclude(group = "com.google.code.gson")
    }
-   implementation("com.google.code.gson:gson:2.9.1")
+   implementation("com.google.code.gson:gson:2.10.1")
    // await status
    implementation("org.ethereum:leveldbjni-all:1.18.3")
    // elasticsearch
-   implementation("org.elasticsearch.client:elasticsearch-rest-high-level-client:7.12.0")
+   implementation("org.elasticsearch.client:elasticsearch-rest-high-level-client:7.15.0")
 
    testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
