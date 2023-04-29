@@ -8,13 +8,13 @@ import com.tgse.index.ProxyProperties
 import com.tgse.index.domain.repository.TelegramRepository
 import com.tgse.index.domain.service.TelegramService
 import com.tgse.index.infrastructure.provider.BotProvider
+import jakarta.annotation.PostConstruct
 import okhttp3.OkHttpClient
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Repository
 import java.net.InetSocketAddress
 import java.net.Proxy
-import javax.annotation.PostConstruct
 
 @Repository
 class TelegramRepositoryImpl(
