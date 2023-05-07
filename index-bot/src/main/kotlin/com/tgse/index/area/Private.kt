@@ -139,11 +139,13 @@ class Private(
         val telegramMod = telegramService.getTelegramMod(username)
         // 检查是否为频道管理员
         if (telegramMod is TelegramService.TelegramChannel) {
-            val isManager = GetChatAdministrators(telegramMod.username)
-                .let(botProvider::send)
-                .administrators().find {
+            val isManager = GetChatAdministrators('@'+telegramMod.username)
+                .runCatching(botProvider::send)
+                .onFailure { e -> e.printStackTrace() }
+                .getOrNull()
+                ?.administrators()?.find {
                     it.user().id() == request.update.message().from().id()
-                } == null
+                } != null
             if (!isManager) {
                 val msg = normalMsgFactory.makeReplyMsg(request.chatId, "enroll-need-channel-manager")
                 botProvider.send(msg)
