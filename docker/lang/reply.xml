@@ -61,11 +61,19 @@
             &lt;b&gt;群组：&lt;/b&gt;请将机器人添加至群组中，然后在群组中使用 /enroll@{bot.username} 命令收录；
             &lt;b&gt;频道：&lt;/b&gt;请直接发送频道用户名或链接；
             &lt;b&gt;bot：&lt;/b&gt;不支持收录。
-			
+
             例：
 
             @se_talk
             https://t.me/se_talk
+        </content>
+    </msg>
+    <msg>
+        <type>
+            enroll-need-channel-manager
+        </type>
+        <content>
+            请先将机器人拉入频道，并设置为频道管理员。
         </content>
     </msg>
     <msg>
@@ -347,7 +355,7 @@
         </type>
         <content>
             #{chat-id}
-            已加入黑名单，不再为其提供任何服务。 
+            已加入黑名单，不再为其提供任何服务。
         </content>
     </msg>
     <msg>
@@ -374,7 +382,7 @@
         </type>
         <content>
             #{chat-id}
-            已从黑名单中移除，将正常为其提供服务。 
+            已从黑名单中移除，将正常为其提供服务。
         </content>
     </msg>
     <msg>
