@@ -1,5 +1,5 @@
 Name:       index-bot
-Version:    2.0.0
+Version:    2.0.0-next
 Release:    1%{?dist}
 Summary:    telegram index bot
 License:    LGPL
@@ -22,12 +22,12 @@ mv ReadMe.md $RPM_BUILD_ROOT/opt/index-bot/
 
 mkdir $RPM_BUILD_ROOT/opt/index-bot/elasticsearch
 cp config/elasticsearch.yml $RPM_BUILD_ROOT/opt/index-bot/elasticsearch/
-cp elasticsearch-7.15.2-linux-x86_64.tar.gz $RPM_BUILD_ROOT/opt/index-bot/elasticsearch/
-cp elasticsearch-analysis-ik-7.15.2.zip $RPM_BUILD_ROOT/opt/index-bot/elasticsearch/
+cp elasticsearch-7.17.10-linux-x86_64.tar.gz $RPM_BUILD_ROOT/opt/index-bot/elasticsearch/
+cp elasticsearch-analysis-ik-7.17.10.zip $RPM_BUILD_ROOT/opt/index-bot/elasticsearch/
 cp index-bot-elasticsearch.service $RPM_BUILD_ROOT/usr/lib/systemd/system/
 
-mkdir $RPM_BUILD_ROOT/opt/index-bot/java 
-cp jdk-11.0.12_linux-x64_bin.tar.gz $RPM_BUILD_ROOT/opt/index-bot/java/
+mkdir $RPM_BUILD_ROOT/opt/index-bot/java
+cp openjdk-17.0.2_linux-x64_bin.tar.gz $RPM_BUILD_ROOT/opt/index-bot/java/
 
 mv bot/ $RPM_BUILD_ROOT/opt/index-bot/bot
 cp index-bot.service $RPM_BUILD_ROOT/usr/lib/systemd/system/
@@ -38,20 +38,20 @@ cat /opt/index-bot/ReadMe.md
 
 # elasticsearch
 adduser elasticsearch
-tar -zxf /opt/index-bot/elasticsearch/elasticsearch-7.15.2-linux-x86_64.tar.gz -C /opt/index-bot/elasticsearch
-mv /opt/index-bot/elasticsearch/elasticsearch-7.15.2/* /opt/index-bot/elasticsearch/
-rm -rf /opt/index-bot/elasticsearch/elasticsearch-7.15.2/
-unzip /opt/index-bot/elasticsearch/elasticsearch-analysis-ik-7.15.2.zip -d /opt/index-bot/elasticsearch/plugins/ik/ > /dev/null
+tar -zxf /opt/index-bot/elasticsearch/elasticsearch-7.17.10-linux-x86_64.tar.gz -C /opt/index-bot/elasticsearch
+mv /opt/index-bot/elasticsearch/elasticsearch-7.17.10/* /opt/index-bot/elasticsearch/
+rm -rf /opt/index-bot/elasticsearch/elasticsearch-7.17.10/
+unzip /opt/index-bot/elasticsearch/elasticsearch-analysis-ik-7.17.10.zip -d /opt/index-bot/elasticsearch/plugins/ik/ > /dev/null
 mv /opt/index-bot/elasticsearch/elasticsearch.yml /opt/index-bot/elasticsearch/config/
-rm /opt/index-bot/elasticsearch/elasticsearch-7.15.2-linux-x86_64.tar.gz
-rm /opt/index-bot/elasticsearch/elasticsearch-analysis-ik-7.15.2.zip
+rm /opt/index-bot/elasticsearch/elasticsearch-7.17.10-linux-x86_64.tar.gz
+rm /opt/index-bot/elasticsearch/elasticsearch-analysis-ik-7.17.10.zip
 chown -R elasticsearch /opt/index-bot/elasticsearch
 
 # java
-tar -zxf /opt/index-bot/java/jdk-11.0.12_linux-x64_bin.tar.gz  -C /opt/index-bot/java/
-mv /opt/index-bot/java/jdk-11.0.12/* /opt/index-bot/java/
-rm -rf /opt/index-bot/java/jdk-11.0.12/
-rm /opt/index-bot/java/jdk-11.0.12_linux-x64_bin.tar.gz
+tar -zxf /opt/index-bot/java/openjdk-17.0.2_linux-x64_bin.tar.gz  -C /opt/index-bot/java/
+mv /opt/index-bot/java/openjdk-17.0.2/* /opt/index-bot/java/
+rm -rf /opt/index-bot/java/openjdk-17.0.2/
+rm /opt/index-bot/java/openjdk-17.0.2_linux-x64_bin.tar.gz
 
 systemctl enable index-bot.service
 systemctl enable index-bot-elasticsearch.service

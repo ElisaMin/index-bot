@@ -6,6 +6,6 @@ After=network.target index-bot-elasticsearch.service
 [Service]
 ExecStartPre=/bin/bash -c '(while ! nc -z -v -w1 localhost 9900 2>/dev/null; do echo "Waiting for elasticsearch started..."; sleep 2; done); sleep 2 '
 WorkingDirectory=/opt/index-bot/bot
-ExecStart=/opt/index-bot/java/bin/java -jar telegram-index-bot-2.0.0.jar
+ExecStart=/opt/index-bot/java/bin/java -jar telegram-index-bot-2.0.0-next.jar
 [Install]
 WantedBy=multi-user.target

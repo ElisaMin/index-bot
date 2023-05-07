@@ -16,21 +16,20 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Set up JDK 11
+      - name: Set up JDK 17
         uses: actions/setup-java@v2
         with:
-          java-version: "11"
+          java-version: "17"
           distribution: "adopt"
 
       # 下载资源文件
-      # java: https://cloud.scomarlf.com/s/g0UW?path=%2F
       - name: Download resource
         run: |
           mkdir resource
           cd resource
-          curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-7.15.2-linux-x86_64.tar.gz
-          curl -L https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v7.15.2/elasticsearch-analysis-ik-7.15.2.zip > elasticsearch-analysis-ik-7.15.2.zip
-          wget https://cloud.scomarlf.com/api/v3/file/get/88/jdk-11.0.12_linux-x64_bin.tar.gz?sign=qPVwbwDWfM7TNCmZa3Qt9pimJ6dtFaitkn-T2yOgIUA%3D%3A0 --no-check-certificate -O ./jdk-11.0.12_linux-x64_bin.tar.gz
+          curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-1.17.10-linux-x86_64.tar.gz
+          curl -L https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v1.17.10/elasticsearch-analysis-ik-1.17.10.zip > elasticsearch-analysis-ik-1.17.10.zip
+          wget https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_linux-x64_bin.tar.gz --no-check-certificate -O ./openjdk-17.0.2_linux-x64_bin.tar.gz
           ls
 
       - name: Build with Gradle
@@ -50,12 +49,12 @@ jobs:
           mv package/config ~/rpmbuild/BUILD/
           mv package/lang ~/rpmbuild/BUILD/bot/
           mv package/data ~/rpmbuild/BUILD/bot/
-          mv index-bot/build/libs/telegram-index-bot-2.0.0.jar ~/rpmbuild/BUILD/bot/
+          mv index-bot/build/libs/telegram-index-bot-2.0.0-next.jar ~/rpmbuild/BUILD/bot/
           mv index-bot/src/main/resources/application.yaml ~/rpmbuild/BUILD/bot/
 
-          mv resource/elasticsearch-7.15.2-linux-x86_64.tar.gz ~/rpmbuild/BUILD/
-          mv resource/elasticsearch-analysis-ik-7.15.2.zip ~/rpmbuild/BUILD/
-          mv resource/jdk-11.0.12_linux-x64_bin.tar.gz ~/rpmbuild/BUILD/
+          mv resource/elasticsearch-1.17.10-linux-x86_64.tar.gz ~/rpmbuild/BUILD/
+          mv resource/elasticsearch-analysis-ik-1.17.10.zip ~/rpmbuild/BUILD/
+          mv resource/openjdk-17.0.2_linux-x64_bin.tar.gz ~/rpmbuild/BUILD/
 
           mv package/index-bot-elasticsearch.service ~/rpmbuild/BUILD/
           mv package/index-bot.service ~/rpmbuild/BUILD/

@@ -77,6 +77,18 @@ http.port: 9900
 #
 # ---------------------------------- Various -----------------------------------
 #
-# Require explicit names when deleting indices:
+# Allow wildcard deletion of indices:
 #
-#action.destructive_requires_name: true
+# action.destructive_requires_name: false
+
+#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------
+#
+# The following settings, TLS certificates, and keys have been automatically
+# generated to configure Elasticsearch security features on 30-04-2023 15:31:59
+#
+# --------------------------------------------------------------------------------
+
+# Enable security features
+xpack.security.enabled: false
+
+#----------------------- END SECURITY AUTO CONFIGURATION -------------------------

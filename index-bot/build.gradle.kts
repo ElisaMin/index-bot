@@ -50,7 +50,8 @@ dependencies {
    // await status
    implementation("org.ethereum:leveldbjni-all:1.18.3")
    // elasticsearch
-   implementation("org.elasticsearch.client:elasticsearch-rest-high-level-client:7.17.9")
+   val esv = System.getenv("elasticsearch_version") ?: "7.17.10"
+   implementation("org.elasticsearch.client:elasticsearch-rest-high-level-client:$esv")
 
    testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
