@@ -1,0 +1,29 @@
+version: "3"
+services:
+  es:
+    build: package/config/
+    image: es:latest
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    container_name: elasticsearch
+    volumes:
+      - ./compose-root/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    ports:
+      - 9900:9900
+  index-bot:
+    healthcheck:
+      test: curl -f http://localhost:9900 || exit 1
+      interval: 10s
+      timeout: 3s
+      retries: 30
+    build: .
+    depends_on:
+      - es
+    image: index-bot:lastest
+    container_name: index-bot
+    volumes:
+      - ./compose-root/log:/opt/index-bot/log
+      - ./compose-root/lang:/opt/index-bot/lang
+      - ./compose-root/application.yaml:/opt/index-bot/application.yaml
+      
+      
