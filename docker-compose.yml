@@ -1,16 +1,18 @@
 version: "3.9"
 services:
   es:
-    build: docker/es
+    container_name: elasticsearch
+
     image: es:latest
+    build: docker/es
+
     environment:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    container_name: elasticsearch
+    
     volumes:
       - ./compose-root/data:/usr/share/elasticsearch/data
       - ./compose-root/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
-    ports:
-      - 9900:9900
+
     healthcheck:
       test: wget -qO-  http://localhost:9900
       interval: 3s
@@ -18,11 +20,18 @@ services:
       retries: 60
 
   index-bot:
+
+    container_name: index-bot
+
+    image: index-bot:lastest
     build: .
+
     depends_on:
       - es
-    image: index-bot:lastest
-    container_name: index-bot
+
+    # links:
+    #   - es
+
     volumes:
       - ./compose-root/log:/opt/index-bot/log
       - ./compose-root/data:/opt/index-bot/data

@@ -13,7 +13,7 @@ bot:
 
 # elasticsearch
 elastic:
-  hostname: localhost
+  hostname: es
   schema: http
   port: 9900
 
