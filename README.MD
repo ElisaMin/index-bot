@@ -5,7 +5,16 @@
 docker compose
 
 ### run
-```
-docker compose up es -d --wait
-docker compose up index-bot
+```bash
+# build
+docker compose build
+# deply files
+cp -rf ./index-bot/src/main/resources/application.yaml ./compose-root/
+cp -rf ./docker/lang ./compose-root/
+cp -rf ./docker/es/elasticsearch.yml ./compose-root/
+# test
+docker compose up es -d --wait && docker compose up index-bot 
+# runtime 
+docker compose up es -d --wait && docker compose up index-bot -d
+
 ```

@@ -11,7 +11,7 @@ services:
     
     volumes:
       - ./compose-root/data:/usr/share/elasticsearch/data
-      - ./compose-root/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - ./compose-root/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 
     healthcheck:
       test: wget -qO-  http://localhost:9900
@@ -21,6 +21,7 @@ services:
 
   index-bot:
 
+    # command: wget -qO-  http://es:9900
     container_name: index-bot
 
     image: index-bot:lastest
