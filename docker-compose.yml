@@ -1,12 +1,13 @@
 version: "3"
 services:
   es:
-    build: package/config/
+    build: docker/es
     image: es:latest
     environment:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     container_name: elasticsearch
     volumes:
+      - ./compose-root/data:/usr/share/elasticsearch/data
       - ./compose-root/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
     ports:
       - 9900:9900
@@ -23,6 +24,7 @@ services:
     container_name: index-bot
     volumes:
       - ./compose-root/log:/opt/index-bot/log
+      - ./compose-root/data:/opt/index-bot/data
       - ./compose-root/lang:/opt/index-bot/lang
       - ./compose-root/application.yaml:/opt/index-bot/application.yaml
       
