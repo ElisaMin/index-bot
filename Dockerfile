@@ -6,7 +6,7 @@ LABEL name="index-bot"
 LABEL version="2.0.0-next"
 
 RUN mkdir -p /opt/index-bot/lang /opt/index-bot/data /usr/src/index-bot
-COPY package/lang /opt/index-bot/
+COPY docker/lang /opt/index-bot/
 COPY index-bot /usr/src/index-bot
 COPY index-bot/src/main/resources/application.yaml /opt/index-bot/application.yaml
 WORKDIR /usr/src/index-bot
