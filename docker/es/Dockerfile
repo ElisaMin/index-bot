@@ -1,4 +1,4 @@
-FROM amd64/eclipse-temurin:17-jdk-alpine
+FROM amd64/eclipse-temurin:17-jre-alpine
 
 LABEL maintainer="https://github.com/blacktop"
 

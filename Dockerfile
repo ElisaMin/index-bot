@@ -1,6 +1,6 @@
 # build and run spring boot application
 FROM amd64/eclipse-temurin:17-jdk-alpine as build
-ENV elastic_search_version=7.17.10
+ENV elasticsearch_version=7.17.10
 
 LABEL name="index-bot"
 LABEL version="2.0.0-next"
@@ -14,7 +14,7 @@ RUN chmod 775 gradlew && ./gradlew --no-build-cache --no-configuration-cache  bo
 RUN cp build/libs/telegram-index-bot-2.0.0-next.jar /opt/index-bot/index-bot.jar && \
     rm -rf /usr/src/index-bot
 
-FROM amd64/eclipse-temurin:17-jdk-alpine as run
+FROM amd64/eclipse-temurin:17-jre-alpine as run
 COPY --from=build /opt/index-bot /opt/index-bot
 WORKDIR /opt/index-bot
 CMD ["java", "-jar", "/opt/index-bot/index-bot.jar", "--spring.config.location=/opt/index-bot/application.yaml"]
