@@ -6,6 +6,6 @@ docker compose
 
 ### run
 ```
-docker compose up es
+docker compose up es -d --wait
 docker compose up index-bot
 ```
