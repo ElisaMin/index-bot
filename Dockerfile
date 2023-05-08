@@ -16,6 +16,7 @@ RUN cp build/libs/telegram-index-bot-2.0.0-next.jar /opt/index-bot/index-bot.jar
 
 FROM amd64/eclipse-temurin:17-jre-alpine as run
 COPY --from=build /opt/index-bot /opt/index-bot
+RUN apk add --no-cache libstdc++ 
 WORKDIR /opt/index-bot
 CMD ["java", "-jar", "/opt/index-bot/index-bot.jar", "--spring.config.location=/opt/index-bot/application.yaml"]
 
