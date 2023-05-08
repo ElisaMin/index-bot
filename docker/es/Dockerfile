@@ -46,7 +46,7 @@ ENV PATH /usr/share/elasticsearch/bin:$PATH
 ENV ES_JAVA_OPTS="-Xms512m -Xmx512m"
 ENV ES_TMPDIR /usr/share/elasticsearch/tmp
 
-# VOLUME ["/usr/share/elasticsearch/data"]
+VOLUME ["/usr/share/elasticsearch/data"]
 
 EXPOSE 9900
 
