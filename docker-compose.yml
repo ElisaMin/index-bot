@@ -1,4 +1,4 @@
-version: "3"
+version: "3.9"
 services:
   es:
     build: docker/es
@@ -11,12 +11,13 @@ services:
       - ./compose-root/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
     ports:
       - 9900:9900
-  index-bot:
     healthcheck:
-      test: curl -f http://localhost:9900 || exit 1
-      interval: 10s
-      timeout: 3s
-      retries: 30
+      test: wget -qO-  http://localhost:9900
+      interval: 3s
+      timeout: 5s
+      retries: 60
+
+  index-bot:
     build: .
     depends_on:
       - es
@@ -27,5 +28,3 @@ services:
       - ./compose-root/data:/opt/index-bot/data
       - ./compose-root/lang:/opt/index-bot/lang
       - ./compose-root/application.yaml:/opt/index-bot/application.yaml
-      
-      
