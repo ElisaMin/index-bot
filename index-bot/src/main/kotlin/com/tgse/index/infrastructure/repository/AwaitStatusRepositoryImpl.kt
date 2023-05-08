@@ -2,9 +2,9 @@ package com.tgse.index.infrastructure.repository
 
 import com.tgse.index.domain.repository.AwaitStatusRepository
 import com.tgse.index.domain.service.AwaitStatusService
-import org.fusesource.leveldbjni.JniDBFactory
 import org.iq80.leveldb.Options
 import org.iq80.leveldb.WriteOptions
+import org.iq80.leveldb.impl.Iq80DBFactory
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Repository
 import java.io.File
@@ -18,7 +18,7 @@ class AwaitStatusRepositoryImpl : AwaitStatusRepository {
     private val levelDBFile = File("./data/await-status")
     private val createOptions = Options().createIfMissing(true)
     private val writeOption = WriteOptions().sync(false)
-    private val db = JniDBFactory.factory.open(levelDBFile, createOptions)
+    private val db = Iq80DBFactory.factory.open(levelDBFile, createOptions)
 
     override fun setAwaitStatus(chatId: Long, await: AwaitStatusService.Await) {
         try {

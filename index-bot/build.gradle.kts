@@ -48,7 +48,7 @@ dependencies {
    }
    implementation("com.google.code.gson:gson:2.10.1")
    // await status
-   implementation("org.ethereum:leveldbjni-all:1.18.3")
+   implementation("io.github.pcmind:leveldb:1.2")
    // elasticsearch
    val esv = System.getenv("elasticsearch_version") ?: "7.17.10"
    implementation("org.elasticsearch.client:elasticsearch-rest-high-level-client:$esv")
