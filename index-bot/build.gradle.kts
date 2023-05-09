@@ -23,10 +23,6 @@ repositories {
         name = "lucene-snapshots"
         url = uri("https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/83f9835")
     }
-    maven {
-        name = "softmotions"
-        url = uri("https://repo.softmotions.com/repository/softmotions-public")
-    }
 }
 
 dependencies {
