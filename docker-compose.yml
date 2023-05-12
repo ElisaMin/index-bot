@@ -7,6 +7,7 @@ services:
     build: docker/es
 
     environment:
+      - "ES_TMPDIR=/usr/share/elasticsearch/data/tmp"
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     
     volumes:
