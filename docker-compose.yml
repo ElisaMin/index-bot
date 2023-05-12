@@ -12,6 +12,7 @@ services:
     
     volumes:
       - ./compose-root/data:/usr/share/elasticsearch/data
+      - ./compose-root/data/tmp:/usr/share/elasticsearch/data/tmp
       - ./compose-root/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 
     healthcheck:
