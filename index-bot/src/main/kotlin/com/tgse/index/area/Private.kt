@@ -1,5 +1,6 @@
 package com.tgse.index.area
 
+import com.pengrad.telegrambot.model.ChatMember
 import com.pengrad.telegrambot.model.User
 import com.pengrad.telegrambot.model.request.ParseMode
 import com.pengrad.telegrambot.request.*
@@ -14,6 +15,7 @@ import com.tgse.index.infrastructure.provider.BotProvider
 import com.tgse.index.domain.repository.nick
 import com.tgse.index.domain.service.*
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.util.*
 
@@ -36,7 +38,9 @@ class Private(
     private val userService: UserService,
     private val blackListService: BlackListService,
     private val telegramService: TelegramService,
-    private val awaitStatusService: AwaitStatusService
+    private val awaitStatusService: AwaitStatusService,
+    @Value("\${group.approve.id}")
+    private val approveGroupChatId: Long,
 ) {
 
     private val logger = LoggerFactory.getLogger(Private::class.java)
@@ -124,6 +128,15 @@ class Private(
         )
         botProvider.send(msg)
     }
+    private fun Long.isAdminOf(chatId: Any): Boolean {
+        return botProvider.runCatching {
+            send(GetChatAdministrators(chatId))
+        }.map { rsp -> rsp
+            .administrators()?.any { it.user().id() == this  }
+        }.onFailure { e -> e
+            .printStackTrace()
+        }.getOrNull()?:false
+    }
 
     private fun executeByEnroll(request: RequestService.BotPrivateRequest) {
         // 人员黑名单检测
@@ -139,13 +152,9 @@ class Private(
         val telegramMod = telegramService.getTelegramMod(username)
         // 检查是否为频道管理员
         if (telegramMod is TelegramService.TelegramChannel) {
-            val isManager = GetChatAdministrators('@'+telegramMod.username)
-                .runCatching(botProvider::send)
-                .onFailure { e -> e.printStackTrace() }
-                .getOrNull()
-                ?.administrators()?.find {
-                    it.user().id() == request.update.message().from().id()
-                } != null
+            val isManager: Boolean = request.update.message().from().id().run {
+                isAdminOf('@'+telegramMod.username) || isAdminOf(approveGroupChatId)
+            }
             if (!isManager) {
                 val msg = normalMsgFactory.makeReplyMsg(request.chatId, "enroll-need-channel-manager")
                 botProvider.send(msg)
