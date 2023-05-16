@@ -1,9 +1,10 @@
 package com.tgse.index.area
 
-import com.pengrad.telegrambot.model.ChatMember
 import com.pengrad.telegrambot.model.User
 import com.pengrad.telegrambot.model.request.ParseMode
-import com.pengrad.telegrambot.request.*
+import com.pengrad.telegrambot.request.AnswerCallbackQuery
+import com.pengrad.telegrambot.request.GetChatAdministrators
+import com.pengrad.telegrambot.request.SendMessage
 import com.tgse.index.area.execute.BlacklistExecute
 import com.tgse.index.area.execute.EnrollExecute
 import com.tgse.index.area.execute.RecordExecute
@@ -11,11 +12,10 @@ import com.tgse.index.area.msgFactory.ListMsgFactory
 import com.tgse.index.area.msgFactory.MineMsgFactory
 import com.tgse.index.area.msgFactory.NormalMsgFactory
 import com.tgse.index.area.msgFactory.RecordMsgFactory
-import com.tgse.index.infrastructure.provider.BotProvider
 import com.tgse.index.domain.repository.nick
 import com.tgse.index.domain.service.*
+import com.tgse.index.infrastructure.provider.BotProvider
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.util.*
 
@@ -39,8 +39,6 @@ class Private(
     private val blackListService: BlackListService,
     private val telegramService: TelegramService,
     private val awaitStatusService: AwaitStatusService,
-    @Value("\${group.approve.id}")
-    private val approveGroupChatId: Long,
 ) {
 
     private val logger = LoggerFactory.getLogger(Private::class.java)
@@ -128,6 +126,10 @@ class Private(
         )
         botProvider.send(msg)
     }
+
+    /**
+     * channel name query for enroll submitter is manager
+     */
     private fun Long.isAdminOf(chatId: Any): Boolean {
         return botProvider.runCatching {
             send(GetChatAdministrators(chatId))
@@ -153,7 +155,7 @@ class Private(
         // 检查是否为频道管理员
         if (telegramMod is TelegramService.TelegramChannel) {
             val isManager: Boolean = request.update.message().from().id().run {
-                isAdminOf('@'+telegramMod.username) || isAdminOf(approveGroupChatId)
+                isAdminOf('@'+telegramMod.username) || botProvider.getApproveChatMemberSafe(this)!=null
             }
             if (!isManager) {
                 val msg = normalMsgFactory.makeReplyMsg(request.chatId, "enroll-need-channel-manager")
