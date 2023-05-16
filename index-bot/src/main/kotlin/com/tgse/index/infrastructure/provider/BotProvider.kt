@@ -28,7 +28,9 @@ class BotProvider(
     private val botProperties: BotProperties,
     private val proxyProperties: ProxyProperties,
     @Value("\${secretary.autoDeleteMsgCycle}")
-    private val autoDeleteMsgCycle: Long
+    private val autoDeleteMsgCycle: Long,
+    @Value("\${group.approve.id}")
+    private val approveGroupChatId: Long,
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -188,4 +190,17 @@ class BotProvider(
             // ignore
         }
     }
+    fun getApproveChatMemberSafe(memberId:Long) =
+        bot.runCatching {
+            execute(
+                GetChatMember(
+                    approveGroupChatId,
+                    memberId
+                ))
+                .chatMember()
+                ?.takeIf { it.isMember }
+        }.onFailure { e -> e
+            .printStackTrace()
+        }.getOrNull()
+
 }
