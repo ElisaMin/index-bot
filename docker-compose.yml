@@ -7,10 +7,12 @@ services:
     build: docker/es
 
     environment:
+      - "ES_TMPDIR=/usr/share/elasticsearch/data/tmp"
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     
     volumes:
       - ./compose-root/data:/usr/share/elasticsearch/data
+      - ./compose-root/data/tmp:/usr/share/elasticsearch/data/tmp
       - ./compose-root/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 
     healthcheck:

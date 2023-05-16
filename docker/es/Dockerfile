@@ -24,7 +24,7 @@ RUN adduser -D -h /usr/share/elasticsearch elasticsearch && \
         /usr/share/elasticsearch/logs \
         /usr/share/elasticsearch/config \
         /usr/share/elasticsearch/config/scripts \
-        /usr/share/elasticsearch/tmp \
+        /usr/share/elasticsearch/data/tmp \
         /usr/share/elasticsearch/plugins ;\
     do \
       mkdir -p "$path"; chown -R elasticsearch:elasticsearch "$path"; \
@@ -44,7 +44,7 @@ RUN chmod +x /usr/share/elasticsearch/bin/elasticsearch
 
 ENV PATH /usr/share/elasticsearch/bin:$PATH
 ENV ES_JAVA_OPTS="-Xms512m -Xmx512m"
-ENV ES_TMPDIR /usr/share/elasticsearch/tmp
+ENV ES_TMPDIR /usr/share/elasticsearch/data/tmp
 
 VOLUME ["/usr/share/elasticsearch/data"]
 
