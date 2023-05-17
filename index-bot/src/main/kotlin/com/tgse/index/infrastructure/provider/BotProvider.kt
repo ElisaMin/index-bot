@@ -4,6 +4,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.pengrad.telegrambot.TelegramBot
 import com.pengrad.telegrambot.UpdatesListener
 import com.pengrad.telegrambot.model.BotCommand
+import com.pengrad.telegrambot.model.ChatMember
 import com.pengrad.telegrambot.model.Update
 import com.pengrad.telegrambot.model.request.ChatAction
 import com.pengrad.telegrambot.request.*
@@ -196,11 +197,35 @@ class BotProvider(
                 GetChatMember(
                     approveGroupChatId,
                     memberId
-                ))
-                .chatMember()
-                ?.takeIf { it.isMember }
+                )
+            )?.chatMember()
         }.onFailure { e -> e
             .printStackTrace()
+        }.map {
+            if (it==null) return@map null
+            if (it.user().isBot) return@map null
+            val status = it.status()
+            if (status == ChatMember.Status.restricted) {
+                bot.execute(
+                    SendMessage(
+                        approveGroupChatId,
+                        "用户 @${it.user().username()} (${it.user().id()}) 权限受限！"
+                    )
+                ).isOk
+                return@map null
+            }
+            return@map when(it.status()) {
+                null,
+                ChatMember.Status.left,
+                ChatMember.Status.kicked->null
+                else -> {
+                    send(
+                        SendMessage(approveGroupChatId,
+                        "检测到用户 @${it.user().username()}是群员！通过提交！"
+                    ))
+                }
+            }
+
         }.getOrNull()
 
 }
