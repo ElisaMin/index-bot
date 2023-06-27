@@ -19,10 +19,11 @@ import org.elasticsearch.client.indices.CreateIndexRequest
 import org.elasticsearch.client.indices.GetIndexRequest
 import org.elasticsearch.index.query.QueryBuilder
 import org.elasticsearch.index.query.QueryBuilders
-import org.elasticsearch.search.builder.SearchSourceBuilder
+import org.springframework.retry.annotation.Retryable
 import org.springframework.stereotype.Component
 
 @Component
+@Retryable
 class ElasticsearchProvider(
     elasticProperties: ElasticProperties
 ) : AutoCloseable {

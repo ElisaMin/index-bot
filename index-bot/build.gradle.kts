@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.springframework.boot") version "3.0.6"
+    id("org.springframework.boot") version "3.1.1"
     id("io.spring.dependency-management") version "1.1.0"
     kotlin("jvm") version "1.8.21"
     kotlin("plugin.spring") version "1.8.21"
@@ -31,6 +31,8 @@ dependencies {
 
    implementation("org.springframework.boot:spring-boot-starter")
    annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
+    // https://mvnrepository.com/artifact/org.springframework.retry/spring-retry
+    implementation("org.springframework.retry:spring-retry:2.0.2")
 
    implementation("com.google.guava:guava:31.1-jre")
    implementation("org.dom4j:dom4j:2.1.4")
