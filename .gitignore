@@ -35,9 +35,3 @@ out/
 
 ### VS Code ###
 .vscode/
-
-index-bot/log/
-index-bot/libs/
-package/log/
-package/data/
-compose-root/
