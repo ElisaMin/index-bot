@@ -58,7 +58,13 @@ tasks.withType<KotlinCompile> {
         jvmTarget = "17"
     }
 }
-
+kotlin {
+    sourceSets.all {
+       languageSettings {
+           languageVersion = "2.0"
+       }
+   }
+}
 tasks.withType<Test> {
    useJUnitPlatform()
 }
