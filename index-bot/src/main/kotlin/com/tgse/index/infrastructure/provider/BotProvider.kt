@@ -9,6 +9,7 @@ import com.pengrad.telegrambot.model.request.ChatAction
 import com.pengrad.telegrambot.request.*
 import com.pengrad.telegrambot.response.*
 import com.tgse.index.BotProperties
+import com.tgse.index.ElasticSearchException
 import com.tgse.index.ProxyProperties
 import com.tgse.index.SetCommandException
 import io.reactivex.rxjava3.core.Observable
@@ -21,7 +22,6 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.*
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 
 @Component
 class BotProvider(
@@ -32,25 +32,26 @@ class BotProvider(
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
 
-    private val requestExecutorService = run {
-        val pool = Executors.newCachedThreadPool {
-            val thread = Thread(it, "用户请求处理线程")
-            thread.isDaemon = true
-            thread
+    private val requestExecutorService = MoreExecutors.listeningDecorator(
+        Executors.newCachedThreadPool {
+            Thread(it).apply {
+                name = "用户请求处理线程"
+                isDaemon = true
+            }
         }
-        MoreExecutors.listeningDecorator(pool)
-    }
+    )
 
-    private val bot: TelegramBot = run {
-        if (proxyProperties.enabled) {
-            val socketAddress = InetSocketAddress(proxyProperties.ip, proxyProperties.port)
-            val proxy = Proxy(proxyProperties.type, socketAddress)
-            val okHttpClient = OkHttpClient().newBuilder().proxy(proxy).build()
-            TelegramBot.Builder(botProperties.token).okHttpClient(okHttpClient).build()
-        } else {
-            TelegramBot(botProperties.token)
+    private val bot: TelegramBot
+    = TelegramBot.Builder(botProperties.token)
+        .apply {
+            if (proxyProperties.enabled) {
+                val socketAddress = InetSocketAddress(proxyProperties.ip, proxyProperties.port)
+                val proxy = Proxy(proxyProperties.type, socketAddress)
+                val okHttpClient = OkHttpClient().newBuilder().proxy(proxy).build()
+                okHttpClient(okHttpClient)
+            }
         }
-    }
+        .build()
 
     private val updateSubject = BehaviorSubject.create<Update>()
     val updateObservable: Observable<Update> = updateSubject.distinct()
@@ -86,17 +87,22 @@ class BotProvider(
 
     private fun handleUpdate() {
         bot.setUpdatesListener { updates ->
-            val futures = mutableListOf<Future<*>>()
-            updates.forEach { update ->
-                futures.add(requestExecutorService.submit { updateSubject.onNext(update) })
-            }
-            for (future in futures) {
-                try {
-                    future.get()
-                } catch (e: Throwable) {
-                    e.printStackTrace()
-                    throw e
+            val exceptions = updates
+                .map { update -> requestExecutorService.submit { updateSubject.onNext(update) } }
+                .asSequence()
+                .mapNotNull { future ->
+                    runCatching {
+                        future.get()
+                    }.onFailure {
+                        it.printStackTrace()
+                    }.exceptionOrNull()
+                }.filterIsInstance<ElasticSearchException>()
+                .toList()
+            if (exceptions.isNotEmpty()) {
+                exceptions.forEach {
+                    it.printStackTrace()
                 }
+                throw RuntimeException("ElasticSearch ERROR!")
             }
             UpdatesListener.CONFIRMED_UPDATES_ALL
         }
@@ -187,5 +193,7 @@ class BotProvider(
         } catch (e: Throwable) {
             // ignore
         }
+        if (error is ElasticSearchException)
+            throw error
     }
 }
