@@ -10,12 +10,17 @@ COPY docker/lang /opt/index-bot/
 COPY index-bot /usr/src/index-bot
 COPY index-bot/src/main/resources/application.yaml /opt/index-bot/application.yaml
 WORKDIR /usr/src/index-bot
-RUN chmod 775 gradlew && ./gradlew --no-build-cache --no-configuration-cache  bootJar
+RUN chmod 775 gradlew && ./gradlew 
+RUN ./gradlew assemble
+RUN ./gradlew bootJar
 RUN cp build/libs/telegram-index-bot-2.0.0-next.jar /opt/index-bot/index-bot.jar && \
     rm -rf /usr/src/index-bot
 
 FROM amd64/eclipse-temurin:17-jre-alpine as run
 COPY --from=build /opt/index-bot /opt/index-bot
+ENV APP_CONFIG=/opt/index-bot/application.yaml
 WORKDIR /opt/index-bot
-CMD ["java", "-jar", "/opt/index-bot/index-bot.jar", "--spring.config.location=/opt/index-bot/application.yaml"]
+COPY docker/ib/index-bot-entrypoint.sh /opt/index-bot/
+RUN chmod 775 index-bot-entrypoint.sh
+ENTRYPOINT [ "sh","index-bot-entrypoint.sh" ]
 

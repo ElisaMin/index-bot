@@ -21,9 +21,8 @@ services:
       retries: 60
 
   index-bot:
-
-    # command: wget -qO-  http://es:9900
     container_name: index-bot
+    restart: always
 
     image: index-bot:lastest
     build: .
