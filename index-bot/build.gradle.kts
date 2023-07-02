@@ -54,7 +54,7 @@ dependencies {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions {
-        freeCompilerArgs = listOf("-Xjsr305=strict")
+        freeCompilerArgs = listOf("-Xjsr305=strict","-Xno-call-assertions","-Xno-receiver-assertions","-Xno-param-assertions")
         jvmTarget = "17"
     }
 }
