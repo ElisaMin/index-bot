@@ -13,15 +13,35 @@ import com.tgse.index.ElasticSearchException
 import com.tgse.index.ProxyProperties
 import com.tgse.index.SetCommandException
 import io.reactivex.rxjava3.core.Observable
+import io.reactivex.rxjava3.exceptions.CompositeException
 import io.reactivex.rxjava3.subjects.BehaviorSubject
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.DisposableBean
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.context.event.ApplicationFailedEvent
+import org.springframework.context.ApplicationEvent
+import org.springframework.context.ApplicationListener
 import org.springframework.stereotype.Component
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.*
+import java.util.concurrent.Callable
 import java.util.concurrent.Executors
+import kotlin.jvm.Throws
+
+@Component
+class Exit(
+    val botProvider: BotProvider
+): ApplicationListener<ApplicationEvent> {
+    val logger = LoggerFactory.getLogger(this::class.java)
+    override fun onApplicationEvent(event: ApplicationEvent) {
+        logger.warn("event ${event::class.java}")
+        botProvider.destroy()
+    }
+}
+
 
 @Component
 class BotProvider(
@@ -29,7 +49,7 @@ class BotProvider(
     private val proxyProperties: ProxyProperties,
     @Value("\${secretary.autoDeleteMsgCycle}")
     private val autoDeleteMsgCycle: Long
-) {
+):DisposableBean {
     private val logger = LoggerFactory.getLogger(this::class.java)
 
     private val requestExecutorService = MoreExecutors.listeningDecorator(
@@ -40,18 +60,15 @@ class BotProvider(
             }
         }
     )
-
-    private val bot: TelegramBot
-    = TelegramBot.Builder(botProperties.token)
-        .apply {
-            if (proxyProperties.enabled) {
-                val socketAddress = InetSocketAddress(proxyProperties.ip, proxyProperties.port)
-                val proxy = Proxy(proxyProperties.type, socketAddress)
-                val okHttpClient = OkHttpClient().newBuilder().proxy(proxy).build()
-                okHttpClient(okHttpClient)
-            }
+    private final val httpClient = OkHttpClient().newBuilder().apply {
+        dispatcher(Dispatcher(requestExecutorService))
+        if (proxyProperties.enabled) {
+            val socketAddress = InetSocketAddress(proxyProperties.ip, proxyProperties.port)
+            val proxy = Proxy(proxyProperties.type, socketAddress)
+            proxy(proxy)
         }
-        .build()
+    }.build()
+    private val bot: TelegramBot = TelegramBot.Builder(botProperties.token).okHttpClient(httpClient).build()
 
     private val updateSubject = BehaviorSubject.create<Update>()
     val updateObservable: Observable<Update> = updateSubject.distinct()
@@ -88,15 +105,20 @@ class BotProvider(
     private fun handleUpdate() {
         bot.setUpdatesListener { updates ->
             val exceptions = updates
-                .map { update -> requestExecutorService.submit { updateSubject.onNext(update) } }
+                .map { update -> requestExecutorService.submit(Callable { updateSubject.onNext(update) }) }
                 .asSequence()
                 .mapNotNull { future ->
                     runCatching {
                         future.get()
                     }.onFailure {
+                        logger.error("its error", it)
                         it.printStackTrace()
                     }.exceptionOrNull()
-                }.filterIsInstance<ElasticSearchException>()
+                }.flatMap {
+                    if (it is CompositeException) it.exceptions.asSequence()
+                    else sequenceOf(it)
+                }
+                .filterIsInstance<ElasticSearchException>()
                 .toList()
             if (exceptions.isNotEmpty()) {
                 exceptions.forEach {
@@ -107,6 +129,7 @@ class BotProvider(
             UpdatesListener.CONFIRMED_UPDATES_ALL
         }
     }
+
 
     fun send(message: SendMessage): SendResponse {
         return bot.execute(message)
@@ -195,5 +218,13 @@ class BotProvider(
         }
         if (error is ElasticSearchException)
             throw error
+    }
+
+    override fun destroy() {
+        logger.error("destroying")
+        bot.removeGetUpdatesListener()
+        bot.shutdown()
+        httpClient.dispatcher.cancelAll()
+        requestExecutorService.shutdown()
     }
 }

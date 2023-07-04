@@ -30,8 +30,15 @@ class ElasticsearchProvider(
     private inline fun <T> wrapError(crossinline block:()->T):T = runCatching(block).getOrElse {
         throw ElasticSearchException(it)
     }
+    var i = 0
+    val client get() = if (i++>3) wrapError {
+        throw NotImplementedError("test")
+    } else {
+        println("its #$i")
+        clientR
+    }
 
-    private val client = wrapError {
+    private val clientR = wrapError {
         RestHighLevelClient(
             RestClient.builder(
                 HttpHost(elasticProperties.hostname, elasticProperties.port, elasticProperties.schema),
