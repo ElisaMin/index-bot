@@ -2,6 +2,8 @@ package com.tgse.index.domain.service
 
 import com.tgse.index.domain.repository.RecordRepository
 import com.tgse.index.domain.repository.TelegramRepository
+import com.tgse.index.infrastructure.provider.ElasticSearchScope
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
@@ -9,13 +11,14 @@ import org.springframework.stereotype.Service
 @Service
 class SyncMembersService(
     private val recordRepository: RecordRepository,
-    private val telegramRepository: TelegramRepository
+    private val telegramRepository: TelegramRepository,
+    private val scope: ElasticSearchScope
 ) {
 
     private val logger = LoggerFactory.getLogger(this::class.java)
 
     @Scheduled(cron = "0 0 6 * * ?")
-    fun doing() {
+    fun doing() = runBlocking(scope.coroutineContext) {
         logger.info("开始 ----> 更新成员数量")
         val size = 100
         var cursor = 0

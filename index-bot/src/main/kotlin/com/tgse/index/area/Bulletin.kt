@@ -40,47 +40,32 @@ class Bulletin(
     /**
      * 同步数据-更新公告
      */
-    private fun subscribeUpdateRecord() {
-        recordService.updateRecordObservable.subscribe(
-            { record ->
-                try {
-                    val msg = bulletinMsgFactory.makeBulletinMsg(bulletinChatId, record.bulletinMessageId!!, record)
-                    botProvider.send(msg)
-                } catch (e: Throwable) {
-                    botProvider.sendErrorMessage(e)
-                    e.printStackTrace()
-                }
-            },
-            { throwable ->
-                logger.error("Bulletin.subscribeUpdateRecord.error", throwable)
-            },
-            {
-                logger.error("Bulletin.subscribeUpdateRecord.complete")
+    private fun subscribeUpdateRecord(): Nothing = recordService.blockWithContext {
+        recordService.updated.collect { record ->
+            runCatching {
+                val msg = bulletinMsgFactory.makeBulletinMsg(bulletinChatId, record.bulletinMessageId!!, record)
+                botProvider.send(msg)
+            }.onFailure { e ->
+                botProvider.sendErrorMessage(e)
+                logger.error("Bulletin.subscribeUpdateRecord.error",e)
             }
-        )
+        }
     }
+
 
     /**
      * 同步数据-删除公告
      */
-    private fun subscribeDeleteRecord() {
-        recordService.deleteRecordObservable.subscribe(
-            { (record, _) ->
-                try {
-                    val msg = bulletinMsgFactory.makeRemovedBulletinMsg(bulletinChatId, record.bulletinMessageId!!)
-                    botProvider.send(msg)
-                } catch (e: Throwable) {
-                    botProvider.sendErrorMessage(e)
-                    e.printStackTrace()
-                }
-            },
-            { throwable ->
-                logger.error("Bulletin.subscribeDeleteRecord.error", throwable)
-            },
-            {
-                logger.error("Bulletin.subscribeDeleteRecord.complete")
+    private fun subscribeDeleteRecord(): Nothing = recordService.blockWithContext {
+        recordService.deletes.collect { (record,_) ->
+            runCatching {
+                val msg = bulletinMsgFactory.makeRemovedBulletinMsg(bulletinChatId, record.bulletinMessageId!!)
+                botProvider.send(msg)
+            }.onFailure { e ->
+                logger.error("Bulletin.subscribeDeleteRecord.error", e)
+                botProvider.sendErrorMessage(e)
             }
-        )
+        }
     }
 
 }

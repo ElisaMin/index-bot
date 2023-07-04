@@ -1,18 +1,29 @@
 package com.tgse.index.domain.service
 
+import com.pengrad.telegrambot.model.Update
 import com.pengrad.telegrambot.model.User
 import com.tgse.index.domain.repository.RecordRepository
 import com.tgse.index.domain.repository.TelegramRepository
-import io.reactivex.rxjava3.core.Observable
-import io.reactivex.rxjava3.subjects.BehaviorSubject
+import com.tgse.index.infrastructure.provider.ElasticSearchScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.channels.broadcast
+import kotlinx.coroutines.channels.onFailure
+import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.cancellable
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.springframework.stereotype.Service
 import java.util.*
 
 @Service
 class RecordService(
     private val recordRepository: RecordRepository,
-    private val telegramRepository: TelegramRepository
-) {
+    private val scope: ElasticSearchScope,
+    private val telegramRepository: TelegramRepository,
+):AutoCloseable {
 
     data class Record(
         val uuid: String,
@@ -34,59 +45,67 @@ class RecordService(
         val createUser: Long,
         val updateTime: Long,
     )
+    fun <R : Any?> blockWithContext(block:suspend CoroutineScope.()->R) = runBlocking(context = scope.coroutineContext,block)
 
-    private val updateRecordSubject = BehaviorSubject.create<Record>()
-    val updateRecordObservable: Observable<Record> = updateRecordSubject.distinct()
-
-    private val deleteRecordSubject = BehaviorSubject.create<Pair<Record, User>>()
-    val deleteRecordObservable: Observable<Pair<Record, User>> = deleteRecordSubject.distinct()
-
-    fun searchRecordsByClassification(classification: String, from: Int, size: Int): Pair<MutableList<Record>, Long> {
-        return recordRepository.searchRecordsByClassification(classification, from, size)
+    private var updateSender:SendChannel<Record>?=null
+    private var deleteSender:SendChannel<Pair<Record,User>>?=null
+    val updated = callbackFlow {
+        updateSender = this
+    }.cancellable()
+    val deletes = callbackFlow {
+        deleteSender = this
+    }
+    fun subscribeUpdate(onUpdate:(Record)->Unit) = scope.launch {
+        updated.collect(onUpdate)
     }
 
-    fun searchRecordsByKeyword(keyword: String, from: Int, size: Int): Pair<MutableList<Record>, Long> {
-        return recordRepository.searchRecordsByKeyword(keyword, from, size)
+    fun searchRecordsByClassification(classification: String, from: Int, size: Int): Pair<MutableList<Record>, Long> = blockWithContext {
+        recordRepository.searchRecordsByClassification(classification, from, size)
     }
 
-    fun searchRecordsByCreator(user: User, from: Int, size: Int): Pair<MutableList<Record>, Long> {
-        return recordRepository.searchRecordsByCreator(user, from, size)
+    fun searchRecordsByKeyword(keyword: String, from: Int, size: Int): Pair<MutableList<Record>, Long> = blockWithContext {
+        recordRepository.searchRecordsByKeyword(keyword, from, size)
     }
 
-    fun getRecordByUsername(username: String): Record? {
-        return recordRepository.getRecordByUsername(username)
+    fun searchRecordsByCreator(user: User, from: Int, size: Int): Pair<MutableList<Record>, Long> = blockWithContext {
+        recordRepository.searchRecordsByCreator(user, from, size)
     }
 
-    fun getRecordByChatId(chatId: Long): Record? {
-        return recordRepository.getRecordByChatId(chatId)
+    fun getRecordByUsername(username: String): Record?  = blockWithContext {
+        recordRepository.getRecordByUsername(username)
     }
 
-    fun addRecord(record: Record): Boolean {
-        return recordRepository.addRecord(record)
+    fun getRecordByChatId(chatId: Long): Record? = blockWithContext {
+        recordRepository.getRecordByChatId(chatId)
     }
 
-    fun updateRecord(record: Record) {
+    fun addRecord(record: Record): Boolean = blockWithContext {
+        recordRepository.addRecord(record)
+    }
+
+    fun updateRecord(record: Record) = blockWithContext {
         val newRecord = record.copy(updateTime = Date().time)
         recordRepository.updateRecord(newRecord)
-        updateRecordSubject.onNext(newRecord)
+        updateSender!!.send(newRecord)
     }
 
-    fun deleteRecord(uuid: String, manager: User) {
+    fun deleteRecord(uuid: String, manager: User) = blockWithContext {
         val record = getRecord(uuid)!!
         recordRepository.deleteRecord(uuid, manager)
-        deleteRecordSubject.onNext(Pair(record, manager))
+        deletes.emit(Pair(record, manager))
     }
 
-    fun count(): Long {
-        return recordRepository.count()
+    fun count(): Long = blockWithContext {
+        recordRepository.count()
     }
 
-    fun getRecord(uuid: String): Record? {
-        return try {
-            recordRepository.getRecord(uuid) ?: return null
-        } catch (e: Throwable) {
-            null
-        }
+    fun getRecord(uuid: String): Record? = blockWithContext {
+        runCatching {
+            recordRepository.getRecord(uuid)
+        }.getOrNull()
+    }
+
+    override fun close() {
     }
 
 }

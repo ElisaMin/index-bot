@@ -11,6 +11,7 @@ import com.tgse.index.area.msgFactory.RecordMsgFactory
 import com.tgse.index.domain.repository.nick
 import com.tgse.index.infrastructure.provider.BotProvider
 import com.tgse.index.domain.service.*
+import com.tgse.index.infrastructure.provider.BotLifecycle
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.lang.RuntimeException
@@ -27,50 +28,36 @@ class Group(
     private val blacklistExecute: BlacklistExecute,
     private val normalMsgFactory: NormalMsgFactory,
     private val recordMsgFactory: RecordMsgFactory,
-) {
+): BotLifecycle() {
 
     private val logger = LoggerFactory.getLogger(Group::class.java)
 
     init {
-        subscribeUpdate()
+        makeCoroutine {
+            requestService.blockRequest<RequestService.BotGroupRequest>(::handle)
+        }
     }
-
-    private fun subscribeUpdate() {
-        requestService.requestObservable.subscribe(
-            { request ->
-                try {
-                    if (request !is RequestService.BotGroupRequest) return@subscribe
-                    // 回执
-                    when {
-                        request.update.callbackQuery() != null ->{
-                            // 输入状态
-                            botProvider.sendTyping(request.chatId)
-                            executeByButton(request)
-                        }
-                        request.update.message().text().startsWith("/") && request.update.message().text().endsWith("@${botProvider.username}") ->{
-                            // 输入状态
-                            botProvider.sendTyping(request.chatId)
-                            executeByCommand(request)
-                        }
-                        else ->
-                            executeByText(request)
-                    }
-                } catch (e: Throwable) {
-                    botProvider.sendErrorMessage(e)
-                    e.printStackTrace()
+    private suspend inline fun handle(request: RequestService.BotGroupRequest) {
+        runCatching {
+            when {
+                request.update.callbackQuery() != null ->{
+                    // 输入状态
+                    botProvider.sendTyping(request.chatId)
+                    executeByButton(request)
                 }
-            },
-            { throwable ->
-                throwable.printStackTrace()
-                logger.error("Group.error")
-                botProvider.sendErrorMessage(throwable)
-            },
-            {
-                logger.error("Group.complete")
+                request.update.message().text().startsWith("/") && request.update.message().text().endsWith("@${botProvider.username}") ->{
+                    // 输入状态
+                    botProvider.sendTyping(request.chatId)
+                    executeByCommand(request)
+                }
+                else ->
+                    executeByText(request)
             }
-        )
+        }.onFailure { e->
+            logger.error("Group.error",e)
+            botProvider.sendErrorMessage(e)
+        }
     }
-
     private fun executeByText(request: RequestService.BotGroupRequest) {
         // todo: 群组中查找群组……
     }

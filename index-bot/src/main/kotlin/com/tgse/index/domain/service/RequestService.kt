@@ -3,11 +3,12 @@ package com.tgse.index.domain.service
 import com.pengrad.telegrambot.model.Chat
 import com.pengrad.telegrambot.model.Update
 import com.pengrad.telegrambot.model.User
-import com.tgse.index.area.Group
 import com.tgse.index.domain.repository.BanListRepository
+import com.tgse.index.infrastructure.provider.BotLifecycle
 import com.tgse.index.infrastructure.provider.BotProvider
-import io.reactivex.rxjava3.core.Observable
-import io.reactivex.rxjava3.subjects.BehaviorSubject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.filterIsInstance
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -22,11 +23,11 @@ class RequestService(
     private val botProvider: BotProvider,
     @Value("\${group.approve.id}")
     private val approveGroupChatId: Long
-) {
+): BotLifecycle() {
 
     open class BotRequest(
         open val chatId: Long?,
-        open val chatType: Chat.Type?,
+        @Suppress("unused") open val chatType: Chat.Type?,
         open val messageId: Int?,
         open val update: Update
     )
@@ -65,37 +66,31 @@ class RequestService(
     )
 
     private val logger = LoggerFactory.getLogger(this::class.java)
-    private val requestSubject = BehaviorSubject.create<BotRequest>()
-    val requestObservable: Observable<BotRequest> = requestSubject.distinct()
-    val feedbackSubject = BehaviorSubject.create<Triple<RecordService.Record, User, String>>()
-    val feedbackObservable: Observable<Triple<RecordService.Record, User, String>> = feedbackSubject.distinct()
+    private val requestFlow = MutableSharedFlow<BotRequest>()
+    private val feedbacks = MutableSharedFlow<Feedback>()
+    val requests: Flow<BotRequest> get() = requestFlow
+    final suspend inline fun <reified T:BotRequest> blockRequest(noinline block: suspend (T)->Unit) = requests.filterIsInstance<T>().collect(block)
+    suspend fun emit(feedback: Feedback) = feedbacks.emit(feedback)
+    suspend fun blockFeedbacks(block:suspend (Feedback)->Unit): Nothing = feedbacks.collect(block)
 
-    init {
-        subscribeUpdate()
-    }
 
-    private fun subscribeUpdate() {
-        botProvider.updateObservable.subscribe(
-            { update ->
-                val request = makeBotRequest(update) ?: return@subscribe
-                request.chatId?.apply {
-                    banListRepository.get(this)?.apply {
-                        return@subscribe
-                    }
-                }
-                requestSubject.onNext(request)
-            },
-            { throwable ->
-                throwable.printStackTrace()
-                logger.error("Group.error")
-                botProvider.sendErrorMessage(throwable)
-            },
-            {
-                logger.error("Group.complete")
+
+    private suspend inline fun handle(u:Update) =
+        makeBotRequest(u)?.runCatching {
+            logger.error("made request $chatId")
+            if (chatId?.let { banListRepository.get(it) } == null) {
+                logger.error("not banded")
+                requestFlow.emit(this)
             }
-        )
+        }?.onFailure { throwable ->
+            logger.error("handling request",throwable)
+            botProvider.sendErrorMessage(throwable)
+        }
+    init {
+        makeCoroutine {
+            botProvider.blockUpdates(::handle)
+        }
     }
-
     private fun makeBotRequest(update: Update): BotRequest? {
         // 仅处理文字信息或按钮回执
         val messageContentIsNull = update.message() == null || update.message().text() == null
@@ -132,3 +127,5 @@ class RequestService(
     }
 
 }
+
+typealias Feedback = Triple<RecordService.Record, User, String>

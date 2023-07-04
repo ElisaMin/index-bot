@@ -9,6 +9,7 @@ import com.tgse.index.area.msgFactory.NormalMsgFactory
 import com.tgse.index.area.msgFactory.RecordMsgFactory
 import com.tgse.index.domain.repository.nick
 import com.tgse.index.domain.service.*
+import com.tgse.index.infrastructure.provider.BotLifecycle
 import com.tgse.index.infrastructure.provider.BotProvider
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -33,148 +34,103 @@ class Approve(
     private val approveGroupChatId: Long,
     @Value("\${secretary.autoDeleteMsgCycle}")
     private val autoDeleteMsgCycle: Long
-) {
+): BotLifecycle() {
     private val logger = LoggerFactory.getLogger(Approve::class.java)
 
     private val commandRegex = """^/(\w+)@(\w+bot)\s*(.+)?""".toRegex()
 
     init {
-        subscribeUpdate()
-        subscribeFeedback()
+        makeCoroutine {
+            requestService.blockRequest<RequestService.BotApproveRequest>(::handle)
+        }
+        makeCoroutine {
+            requestService.blockFeedbacks(::handle)
+        }
         subscribeSubmitEnroll()
         subscribeApproveEnroll()
         subscribeDeleteRecord()
     }
 
-    private fun subscribeUpdate() {
-        requestService.requestObservable.subscribe(
-            { request ->
-                try {
-                    if (request !is RequestService.BotApproveRequest) return@subscribe
-                    // 回执
-                    val commandRegexResult =
-                        if (request.update.message()?.text() == null) null
-                        else commandRegex.find(request.update.message().text())
-                    when {
-                        request.update.callbackQuery() != null -> {
-                            botProvider.sendTyping(request.chatId)
-                            executeByButton(request)
-                        }
-                        awaitStatusService.getAwaitStatus(request.chatId) != null -> {
-                            botProvider.sendTyping(request.chatId)
-                            enrollExecute.executeByStatus(EnrollExecute.Type.Approve, request)
-                        }
-                        commandRegexResult != null -> {
-                            val botUsername = commandRegexResult.groupValues[2]
-                            val command = commandRegexResult.groupValues[1]
-                            val parameter = commandRegexResult.groupValues[3].ifEmpty { null }
-
-                            if (botUsername != botProvider.username) return@subscribe
-                            botProvider.sendTyping(request.chatId)
-                            executeByCommand(request.chatId, command, parameter)
-                        }
-                    }
-                } catch (e: Throwable) {
-                    botProvider.sendErrorMessage(e)
-                    e.printStackTrace()
+    private suspend inline fun handle(request: RequestService.BotApproveRequest) {
+        runCatching {
+            val commandRegexResult =
+                if (request.update.message()?.text() == null) null
+                else commandRegex.find(request.update.message().text())
+            when {
+                request.update.callbackQuery() != null -> {
+                    botProvider.sendTyping(request.chatId)
+                    executeByButton(request)
                 }
-            },
-            { throwable ->
-                throwable.printStackTrace()
-                logger.error("Approve.error")
-                botProvider.sendErrorMessage(throwable)
-            },
-            {
-                logger.error("Approve.complete")
-            }
-        )
-    }
-
-    private fun subscribeFeedback() {
-        requestService.feedbackObservable.subscribe(
-            { (record, user, content) ->
-                try {
-                    val recordMsg = recordMsgFactory.makeFeedbackMsg(approveGroupChatId, record)
-                    botProvider.send(recordMsg)
-                    val feedbackMsg = SendMessage(approveGroupChatId, "ID：${user.id()}\n用户：${user.nick()}\n反馈：$content")
-                    botProvider.send(feedbackMsg)
-                } catch (e: Throwable) {
-                    botProvider.sendErrorMessage(e)
-                    e.printStackTrace()
+                awaitStatusService.getAwaitStatus(request.chatId) != null -> {
+                    botProvider.sendTyping(request.chatId)
+                    enrollExecute.executeByStatus(EnrollExecute.Type.Approve, request)
                 }
-            },
-            { throwable ->
-                throwable.printStackTrace()
-                logger.error("Approve.error")
-                botProvider.sendErrorMessage(throwable)
-            },
-            {
-                logger.error("Approve.complete")
-            }
-        )
-    }
+                commandRegexResult != null -> {
+                    val botUsername = commandRegexResult.groupValues[2]
+                    val command = commandRegexResult.groupValues[1]
+                    val parameter = commandRegexResult.groupValues[3].ifEmpty { null }
 
-    private fun subscribeSubmitEnroll() {
-        enrollService.submitEnrollObservable.subscribe(
-            { enroll ->
+                    if (botUsername != botProvider.username) return
+                    botProvider.sendTyping(request.chatId)
+                    executeByCommand(request.chatId, command, parameter)
+                }
+            }
+        }.onFailure { e->
+            logger.error("Approve",e)
+            botProvider.sendErrorMessage(e)
+        }
+    }
+    private suspend inline fun handle(feedback: Feedback) {
+        val (record, user, content) = feedback
+        runCatching {
+            val recordMsg = recordMsgFactory.makeFeedbackMsg(approveGroupChatId, record)
+            botProvider.send(recordMsg)
+            val feedbackMsg = SendMessage(approveGroupChatId, "ID：${user.id()}\n用户：${user.nick()}\n反馈：$content")
+            botProvider.send(feedbackMsg)
+        }.onFailure {e ->
+            logger.error("Approve",e)
+            botProvider.sendErrorMessage(e)
+        }
+    }
+    private fun subscribeSubmitEnroll(): Nothing = recordService.blockWithContext {
+        enrollService.submits.collect { enroll ->
+            runCatching {
                 val msg = recordMsgFactory.makeApproveMsg(approveGroupChatId, enroll)
                 botProvider.send(msg)
-            },
-            { throwable ->
-                throwable.printStackTrace()
-                logger.error("subscribeSubmitEnroll.error")
-                botProvider.sendErrorMessage(throwable)
-            },
-            {
-                logger.error("subscribeSubmitEnroll.complete")
+            }.onFailure { e ->
+                logger.error("subscribeSubmitEnroll.error", e)
+                botProvider.sendErrorMessage(e)
             }
-        )
+        }
     }
 
-    private fun subscribeApproveEnroll() {
-        enrollService.submitApproveObservable.subscribe(
-            { (enroll, manager, isPassed) ->
-                val msg = recordMsgFactory.makeApproveResultMsg(approveGroupChatId, enroll, manager, isPassed)
-                val msgResponse = botProvider.send(msg)
-                if (isPassed) return@subscribe
+    private fun subscribeApproveEnroll() = enrollService.subscribeApproves {(enroll, manager, isPassed) ->
+        runCatching {
+            val msg = recordMsgFactory.makeApproveResultMsg(approveGroupChatId, enroll, manager, isPassed)
+            val msgResponse = botProvider.send(msg)
+            if (!isPassed) {
                 val editMsg = normalMsgFactory.makeClearMarkupMsg(approveGroupChatId, msgResponse.message().messageId())
                 botProvider.sendDelay(editMsg, autoDeleteMsgCycle * 1000)
-            },
-            { throwable ->
-                throwable.printStackTrace()
-                logger.error("subscribeApproveEnroll.error")
-                botProvider.sendErrorMessage(throwable)
-            },
-            {
-                logger.error("subscribeApproveEnroll.complete")
             }
-        )
+        }.onFailure { e ->
+            logger.error("subscribeApproveEnroll.error", e)
+            botProvider.sendErrorMessage(e)
+        }
     }
-
-    private fun subscribeDeleteRecord() {
-        recordService.deleteRecordObservable.subscribe(
-            { next ->
-                try {
-                    val msg = normalMsgFactory.makeRemoveRecordReplyMsg(
-                        approveGroupChatId,
-                        next.second.nick(),
-                        next.first.title
-                    )
-                    botProvider.send(msg)
-                } catch (e: Throwable) {
-                    botProvider.sendErrorMessage(e)
-                    e.printStackTrace()
-                }
-            },
-            { throwable ->
-                throwable.printStackTrace()
-                logger.error("Approve.error")
-                botProvider.sendErrorMessage(throwable)
-            },
-            {
-                logger.error("Approve.complete")
+    private fun subscribeDeleteRecord(): Nothing = recordService.blockWithContext {
+        recordService.deletes.collect { next ->
+            runCatching {
+                val msg = normalMsgFactory.makeRemoveRecordReplyMsg(
+                    approveGroupChatId,
+                    next.second.nick(),
+                    next.first.title
+                )
+                botProvider.send(msg)
+            }.onFailure { e ->
+                logger.error("Approve.error", e)
+                botProvider.sendErrorMessage(e)
             }
-        )
+        }
     }
 
     private fun executeByCommand(chatId: Long, command: String, parameter: String?) {

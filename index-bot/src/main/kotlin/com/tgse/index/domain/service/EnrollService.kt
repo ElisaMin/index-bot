@@ -2,13 +2,17 @@ package com.tgse.index.domain.service
 
 import com.pengrad.telegrambot.model.User
 import com.tgse.index.domain.repository.EnrollRepository
+import com.tgse.index.infrastructure.provider.ElasticSearchScope
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.subjects.BehaviorSubject
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
 import org.springframework.stereotype.Service
 
 @Service
 class EnrollService(
-    private val enrollRepository: EnrollRepository
+    private val enrollRepository: EnrollRepository,
+    private val scope:ElasticSearchScope
 ) {
 
     data class Enroll(
@@ -33,8 +37,12 @@ class EnrollService(
         val approve: Boolean?
     )
 
-    private val submitEnrollSubject = BehaviorSubject.create<Enroll>()
-    val submitEnrollObservable: Observable<Enroll> = submitEnrollSubject.distinct()
+    val submits = MutableSharedFlow<Enroll>()
+     val submitApproves = MutableSharedFlow<Triple<Enroll, User, Boolean>>()
+
+    fun subscribeApproves(onApprove:(Triple<Enroll, User, Boolean>)->Unit) = scope.launch {
+        submitApproves.collect(onApprove)
+    }
 
     private val submitApproveSubject = BehaviorSubject.create<Triple<Enroll, User, Boolean>>()
     val submitApproveObservable: Observable<Triple<Enroll, User, Boolean>> = submitApproveSubject.distinct()
@@ -64,7 +72,9 @@ class EnrollService(
         if (enroll.isSubmit) return
         val newEnroll = enroll.copy(isSubmit = true)
         updateEnroll(newEnroll)
-        submitEnrollSubject.onNext(newEnroll)
+        scope.launch {
+            submits.emit(enroll)
+        }
     }
 
     fun approveEnroll(uuid: String, manager: User, isPassed: Boolean) {
@@ -72,7 +82,9 @@ class EnrollService(
         val newEnroll = enroll.copy(approve = isPassed)
         updateEnroll(newEnroll)
         val triple = Triple(newEnroll, manager, isPassed)
-        submitApproveSubject.onNext(triple)
+        scope.launch {
+            submitApproves.emit(triple)
+        }
     }
 
     fun getSubmittedEnrollByUsername(username: String): Enroll? {

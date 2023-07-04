@@ -37,6 +37,8 @@ dependencies {
    implementation("org.jsoup:jsoup:1.16.1")
    implementation("org.apache.commons:commons-text:1.10.0")
    implementation("io.reactivex.rxjava3:rxjava:3.1.6")
+   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-rx3:1.7.2")
+
 
    // telegram
    api("com.github.pengrad:java-telegram-bot-api:6.7.0") {

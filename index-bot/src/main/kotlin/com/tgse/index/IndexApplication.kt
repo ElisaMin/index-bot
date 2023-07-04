@@ -6,6 +6,7 @@ import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.EnableScheduling
 import java.net.Proxy
+import kotlin.jvm.Throws
 import kotlin.properties.Delegates
 
 @Configuration

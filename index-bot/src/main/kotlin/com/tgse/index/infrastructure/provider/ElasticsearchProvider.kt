@@ -2,6 +2,9 @@ package com.tgse.index.infrastructure.provider
 
 import com.tgse.index.ElasticProperties
 import com.tgse.index.ElasticSearchException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import org.apache.http.HttpHost
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest
 import org.elasticsearch.action.delete.DeleteRequest
@@ -20,18 +23,26 @@ import org.elasticsearch.client.indices.CreateIndexRequest
 import org.elasticsearch.client.indices.GetIndexRequest
 import org.elasticsearch.index.query.QueryBuilder
 import org.elasticsearch.index.query.QueryBuilders
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import kotlin.coroutines.EmptyCoroutineContext
 
 @Component
+class ElasticSearchScope:CoroutineScope by CoroutineScope(EmptyCoroutineContext)
+@Component
 class ElasticsearchProvider(
-    elasticProperties: ElasticProperties
+    elasticProperties: ElasticProperties,
+    val scope: ElasticSearchScope
 ) : AutoCloseable {
 
-    private inline fun <T> wrapError(crossinline block:()->T):T = runCatching(block).getOrElse {
+    private  inline fun <T> wrapError(crossinline block:()->T):T = runCatching(block).getOrElse {
         throw ElasticSearchException(it)
     }
 
+    private val logger by lazy { LoggerFactory.getLogger(this::class.java) }
+
     private val client = wrapError {
+        @Suppress("DEPRECATION")
         RestHighLevelClient(
             RestClient.builder(
                 HttpHost(elasticProperties.hostname, elasticProperties.port, elasticProperties.schema),
@@ -79,7 +90,7 @@ class ElasticsearchProvider(
     fun indexDocument(request: IndexRequest): Boolean = wrapError {
         runCatching {
             client.index(request, RequestOptions.DEFAULT)
-        }.onFailure {it.printStackTrace()}.isSuccess
+        }.onFailure {logger.error("index field",it)}.isSuccess
     }
 
     /**
@@ -88,7 +99,7 @@ class ElasticsearchProvider(
     fun updateDocument(request: UpdateRequest): Boolean = wrapError {
         runCatching {
             client.update(request, RequestOptions.DEFAULT)
-        }.onFailure { it.printStackTrace() }.isSuccess
+        }.onFailure {logger.error("update field",it)}.isSuccess
     }
 
     /**
@@ -128,6 +139,7 @@ class ElasticsearchProvider(
 
     override fun close() = wrapError {
         client.close()
+        scope.cancel()
     }
 
 }

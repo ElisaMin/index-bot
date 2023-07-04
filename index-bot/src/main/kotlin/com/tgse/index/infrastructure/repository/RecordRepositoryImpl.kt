@@ -1,6 +1,7 @@
 package com.tgse.index.infrastructure.repository
 
 import com.pengrad.telegrambot.model.User
+import com.tgse.index.ElasticSearchException
 import com.tgse.index.domain.repository.RecordRepository
 import com.tgse.index.domain.service.RecordService
 import com.tgse.index.domain.service.TelegramService
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder
 import org.elasticsearch.xcontent.XContentFactory
 import org.elasticsearch.xcontent.XContentType
 import org.springframework.stereotype.Repository
+import kotlin.jvm.Throws
 
 @Repository
 class RecordRepositoryImpl(
@@ -103,7 +105,7 @@ class RecordRepositoryImpl(
     /**
      * 查询所有
      */
-    override fun getAllRecords(from: Int, size: Int): Pair<MutableList<RecordService.Record>, Long> {
+    override suspend fun getAllRecords(from: Int, size: Int): Pair<MutableList<RecordService.Record>, Long> {
         val searchRequest = SearchRequest(index)
         val searchSourceBuilder = SearchSourceBuilder()
         val queryBuilder = QueryBuilders.matchAllQuery()
@@ -115,7 +117,7 @@ class RecordRepositoryImpl(
     /**
      * 根据分类查询
      */
-    override fun searchRecordsByClassification(classification: String, from: Int, size: Int): Pair<MutableList<RecordService.Record>, Long> {
+    override suspend fun searchRecordsByClassification(classification: String, from: Int, size: Int): Pair<MutableList<RecordService.Record>, Long> {
         val searchRequest = SearchRequest(index)
         val searchSourceBuilder = SearchSourceBuilder()
         val queryBuilder = QueryBuilders.matchQuery("classification", classification)
@@ -127,7 +129,7 @@ class RecordRepositoryImpl(
     /**
      * 根据关键词查询
      */
-    override fun searchRecordsByKeyword(keyword: String, from: Int, size: Int): Pair<MutableList<RecordService.Record>, Long> {
+    override suspend fun searchRecordsByKeyword(keyword: String, from: Int, size: Int): Pair<MutableList<RecordService.Record>, Long> {
         val searchRequest = SearchRequest(index)
         val searchSourceBuilder = SearchSourceBuilder()
         val queryBuilder = QueryBuilders.multiMatchQuery(keyword, "title", "tags", "classification")
@@ -139,7 +141,7 @@ class RecordRepositoryImpl(
     /**
      * 根据提交者查询
      */
-    override fun searchRecordsByCreator(user: User, from: Int, size: Int): Pair<MutableList<RecordService.Record>, Long> {
+    override suspend fun searchRecordsByCreator(user: User, from: Int, size: Int): Pair<MutableList<RecordService.Record>, Long> {
         val searchRequest = SearchRequest(index)
         val searchSourceBuilder = SearchSourceBuilder()
         val queryBuilder = QueryBuilders.matchQuery("createUser", user.id())
@@ -164,37 +166,37 @@ class RecordRepositoryImpl(
         }
     }
 
-    override fun addRecord(record: RecordService.Record): Boolean {
+    override suspend fun addRecord(record: RecordService.Record): Boolean {
         val builder = generateXContentFromRecord(record)
         val indexRequest = IndexRequest(index)
         indexRequest.id(record.uuid).source(builder)
         return elasticsearchProvider.indexDocument(indexRequest)
     }
 
-    override fun updateRecord(record: RecordService.Record) {
+    override suspend fun updateRecord(record: RecordService.Record) {
         val builder = generateXContentFromRecord(record)
         val updateRequest = UpdateRequest(index, record.uuid).doc(builder)
         elasticsearchProvider.updateDocument(updateRequest)
     }
 
-    override fun deleteRecord(uuid: String, manager: User) {
+    override suspend fun deleteRecord(uuid: String, manager: User) {
         val deleteRequest = DeleteRequest(index, uuid)
         elasticsearchProvider.deleteDocument(deleteRequest)
     }
 
-    override fun getRecord(uuid: String): RecordService.Record? {
+    override suspend fun getRecord(uuid: String): RecordService.Record? {
         val request = GetRequest(index, uuid)
         val response = elasticsearchProvider.getDocument(request)
         if (!response.isExists) return null
         return generateRecordFromHashMap(uuid, response.sourceAsMap)
     }
 
-    override fun getRecordByUsername(username: String): RecordService.Record? {
+    override suspend fun getRecordByUsername(username: String): RecordService.Record? {
         val queryBuilder = QueryBuilders.matchQuery("username", username)
         return getRecord(queryBuilder)
     }
 
-    override fun getRecordByChatId(chatId: Long): RecordService.Record? {
+    override suspend fun getRecordByChatId(chatId: Long): RecordService.Record? {
         val queryBuilder = QueryBuilders.matchQuery("chatId", chatId)
         return getRecord(queryBuilder)
     }
@@ -209,7 +211,7 @@ class RecordRepositoryImpl(
         else generateRecordFromHashMap(response.hits.hits[0].id, response.hits.hits[0].sourceAsMap)
     }
 
-    override fun count(): Long {
+    override suspend fun count(): Long {
         return elasticsearchProvider.countOfDocument(index)
     }
 

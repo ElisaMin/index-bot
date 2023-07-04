@@ -13,6 +13,7 @@ import com.tgse.index.area.msgFactory.RecordMsgFactory
 import com.tgse.index.infrastructure.provider.BotProvider
 import com.tgse.index.domain.repository.nick
 import com.tgse.index.domain.service.*
+import com.tgse.index.infrastructure.provider.BotLifecycle
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.*
@@ -37,77 +38,64 @@ class Private(
     private val blackListService: BlackListService,
     private val telegramService: TelegramService,
     private val awaitStatusService: AwaitStatusService
-) {
+): BotLifecycle() {
 
     private val logger = LoggerFactory.getLogger(Private::class.java)
 
     init {
-        subscribeUpdate()
+        makeCoroutine {
+            requestService.blockRequest<RequestService.BotPrivateRequest>(::handle)
+        }
         subscribeApprove()
     }
 
-    private fun subscribeUpdate() {
-        requestService.requestObservable.subscribe(
-            { request ->
-                try {
-                    if (request !is RequestService.BotPrivateRequest) return@subscribe
-                    // 输入状态
-                    botProvider.sendTyping(request.chatId)
-                    // 回执
-                    when {
-                        request.update.callbackQuery() != null -> executeByButton(request)
-                        request.update.message().text().startsWith("/") -> executeByCommand(request)
-                        awaitStatusService.getAwaitStatus(request.chatId) != null -> {
-                            try {
-                                val callbackData = awaitStatusService.getAwaitStatus(request.chatId)!!.callbackData
-                                if (callbackData.startsWith("approve") || callbackData.startsWith("enroll"))
-                                    enrollExecute.executeByStatus(EnrollExecute.Type.Enroll, request)
-                                else if (callbackData.startsWith("update"))
-                                    recordExecute.executeByStatus(request)
-                                else
-                                    executeByStatus(EnrollExecute.Type.Enroll, request)
-                            } catch (e: Throwable) {
-                                awaitStatusService.clearAwaitStatus(request.chatId)
-                            }
-                        }
-                        request.update.message().text().startsWith("@") -> executeByEnroll(request)
-                        request.update.message().text().startsWith("https://t.me/") -> executeByEnroll(request)
-                        else -> executeByText(request)
+    private suspend inline fun handle(request: RequestService.BotPrivateRequest) {
+        runCatching {
+            // 输入状态
+            botProvider.sendTyping(request.chatId)
+            // 回执
+            when {
+                request.update.callbackQuery() != null -> executeByButton(request)
+                request.update.message().text().startsWith("/") -> executeByCommand(request)
+                awaitStatusService.getAwaitStatus(request.chatId) != null -> {
+                    try {
+                        val callbackData = awaitStatusService.getAwaitStatus(request.chatId)!!.callbackData
+                        if (callbackData.startsWith("approve") || callbackData.startsWith("enroll"))
+                            enrollExecute.executeByStatus(EnrollExecute.Type.Enroll, request)
+                        else if (callbackData.startsWith("update"))
+                            recordExecute.executeByStatus(request)
+                        else
+                            executeByStatus(EnrollExecute.Type.Enroll, request)
+                    } catch (e: Throwable) {
+                        awaitStatusService.clearAwaitStatus(request.chatId)
                     }
-                } catch (e: Throwable) {
-                    botProvider.sendErrorMessage(e)
-                    e.printStackTrace()
-                } finally {
-                    // 记录日活用户
-                    val user = request.update.message()?.from()
-                    if (user != null) footprint(user)
                 }
-            },
-            { throwable ->
-                throwable.printStackTrace()
-                logger.error("Private.error")
-                botProvider.sendErrorMessage(throwable)
-            },
-            {
-                logger.error("Private.complete")
+                request.update.message().text().startsWith("@") -> executeByEnroll(request)
+                request.update.message().text().startsWith("https://t.me/") -> executeByEnroll(request)
+                else -> executeByText(request)
             }
-        )
+        }.onFailure { e ->
+            logger.error("Private",e)
+            botProvider.sendErrorMessage(e)
+        }
+        // 记录日活用户
+        val user = request.update.message()?.from()
+        if (user != null) footprint(user)
     }
-
-    private fun subscribeApprove() {
+    private fun subscribeApprove() =  {
         enrollService.submitApproveObservable.subscribe(
             { (enroll, manager, isPassed) ->
                 try {
                     val msg = recordMsgFactory.makeApproveResultMsg(enroll.createUser, enroll, isPassed)
                     botProvider.send(msg)
                 } catch (e: Throwable) {
+                    logger.error("Private.approve.error",e)
                     botProvider.sendErrorMessage(e)
-                    e.printStackTrace()
+
                 }
             },
             { throwable ->
-                throwable.printStackTrace()
-                logger.error("Private.approve.error")
+                logger.error("Private.approve.error",throwable)
                 botProvider.sendErrorMessage(throwable)
             },
             {
@@ -272,16 +260,16 @@ class Private(
         }
     }
 
-    fun executeByStatus(type: EnrollExecute.Type, request: RequestService.BotRequest) {
+    suspend fun executeByStatus(type: EnrollExecute.Type, request: RequestService.BotRequest) {
         val statusCallbackData = awaitStatusService.getAwaitStatus(request.chatId!!)!!.callbackData
         when {
-            statusCallbackData.startsWith("feedback:") -> {
+            statusCallbackData.startsWith("feedback:") ->  {
                 val recordUUID = statusCallbackData.replace("feedback:", "")
                 val record = recordService.getRecord(recordUUID)!!
                 val user = request.update.message().from()
                 val content = request.update.message().text()
-                val feedback = Triple(record, user, content)
-                requestService.feedbackSubject.onNext(feedback)
+                val feedback = Feedback(record, user, content)
+                requestService.emit(feedback)
                 // 清除状态
                 awaitStatusService.clearAwaitStatus(request.chatId!!)
                 val msg = normalMsgFactory.makeReplyMsg(request.chatId!!, "feedback-finish")

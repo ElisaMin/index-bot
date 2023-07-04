@@ -1,6 +1,5 @@
 package com.tgse.index.infrastructure.provider
 
-import com.google.common.util.concurrent.MoreExecutors
 import com.pengrad.telegrambot.TelegramBot
 import com.pengrad.telegrambot.UpdatesListener
 import com.pengrad.telegrambot.model.BotCommand
@@ -8,20 +7,22 @@ import com.pengrad.telegrambot.model.Update
 import com.pengrad.telegrambot.model.request.ChatAction
 import com.pengrad.telegrambot.request.*
 import com.pengrad.telegrambot.response.*
-import com.tgse.index.BotProperties
-import com.tgse.index.ElasticSearchException
-import com.tgse.index.ProxyProperties
-import com.tgse.index.SetCommandException
-import io.reactivex.rxjava3.core.Observable
-import io.reactivex.rxjava3.subjects.BehaviorSubject
+import com.tgse.index.*
+import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.context.event.ApplicationFailedEvent
+import org.springframework.context.ApplicationEvent
+import org.springframework.context.ApplicationListener
 import org.springframework.stereotype.Component
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.*
-import java.util.concurrent.Executors
 
 @Component
 class BotProvider(
@@ -29,43 +30,43 @@ class BotProvider(
     private val proxyProperties: ProxyProperties,
     @Value("\${secretary.autoDeleteMsgCycle}")
     private val autoDeleteMsgCycle: Long
-) {
+): BotLifecycle(),ApplicationListener<ApplicationEvent> {
+
     private val logger = LoggerFactory.getLogger(this::class.java)
 
-    private val requestExecutorService = MoreExecutors.listeningDecorator(
-        Executors.newCachedThreadPool {
-            Thread(it).apply {
-                name = "用户请求处理线程"
-                isDaemon = true
-            }
+    private val httpClient = OkHttpClient().newBuilder().apply {
+        dispatcher(Dispatcher(pool))
+        if (proxyProperties.enabled) {
+            val socketAddress = InetSocketAddress(proxyProperties.ip, proxyProperties.port)
+            val proxy = Proxy(proxyProperties.type, socketAddress)
+            proxy(proxy)
         }
-    )
+    }.build()
 
     private val bot: TelegramBot
     = TelegramBot.Builder(botProperties.token)
-        .apply {
-            if (proxyProperties.enabled) {
-                val socketAddress = InetSocketAddress(proxyProperties.ip, proxyProperties.port)
-                val proxy = Proxy(proxyProperties.type, socketAddress)
-                val okHttpClient = OkHttpClient().newBuilder().proxy(proxy).build()
-                okHttpClient(okHttpClient)
-            }
-        }
+        .okHttpClient(httpClient)
         .build()
 
-    private val updateSubject = BehaviorSubject.create<Update>()
-    val updateObservable: Observable<Update> = updateSubject.distinct()
     val username: String by lazy {
         val request = GetMe()
         val response = bot.execute(request)
         response.user().username()
     }
 
-    init {
+    private val updatesFlow = callbackFlow {
         setCommands()
-        handleUpdate()
-        logger.info("Bot ready.")
+        bot.setUpdatesListener {
+            it.forEach { update ->
+                trySendBlocking(update)
+            }
+            UpdatesListener.CONFIRMED_UPDATES_ALL
+        }
+    }.cancellable()
+    suspend fun blockUpdates(block:suspend (Update)->Unit) {
+        updatesFlow.collect(block)
     }
+
 
     private fun setCommands() {
         try {
@@ -85,28 +86,10 @@ class BotProvider(
         }
     }
 
-    private fun handleUpdate() {
-        bot.setUpdatesListener { updates ->
-            val exceptions = updates
-                .map { update -> requestExecutorService.submit { updateSubject.onNext(update) } }
-                .asSequence()
-                .mapNotNull { future ->
-                    runCatching {
-                        future.get()
-                    }.onFailure {
-                        it.printStackTrace()
-                    }.exceptionOrNull()
-                }.filterIsInstance<ElasticSearchException>()
-                .toList()
-            if (exceptions.isNotEmpty()) {
-                exceptions.forEach {
-                    it.printStackTrace()
-                }
-                throw RuntimeException("ElasticSearch ERROR!")
-            }
-            UpdatesListener.CONFIRMED_UPDATES_ALL
-        }
+    init {
+        logger.info("Bot ready.")
     }
+
 
     fun send(message: SendMessage): SendResponse {
         return bot.execute(message)
@@ -185,6 +168,7 @@ class BotProvider(
         return bot.execute(action)
     }
 
+    @Throws(ElasticSearchException::class)
     fun sendErrorMessage(error: Throwable) {
         try {
             val msgContent = "Error:\n" + (error.message ?: error.stackTrace.copyOfRange(0, 4).joinToString("\n"))
@@ -195,5 +179,20 @@ class BotProvider(
         }
         if (error is ElasticSearchException)
             throw error
+    }
+
+    override fun destroy() {
+        bot.removeGetUpdatesListener()
+        bot.shutdown()
+        super.destroy()
+    }
+
+    override fun onApplicationEvent(event: ApplicationEvent) {
+        when(event) {
+            is ApplicationFailedEvent -> {
+                logger.error("${event.exception::class.simpleName} error !")
+                destroy()
+            }
+        }
     }
 }
