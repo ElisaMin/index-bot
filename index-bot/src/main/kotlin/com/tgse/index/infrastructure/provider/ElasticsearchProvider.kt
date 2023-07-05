@@ -20,6 +20,7 @@ import org.elasticsearch.client.indices.CreateIndexRequest
 import org.elasticsearch.client.indices.GetIndexRequest
 import org.elasticsearch.index.query.QueryBuilder
 import org.elasticsearch.index.query.QueryBuilders
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 @Component
@@ -31,7 +32,7 @@ class ElasticsearchProvider(
         throw ElasticSearchException(it)
     }
     var i = 0
-    val client get() = if (i++>3) wrapError {
+    val client get() = if (i++>4) wrapError {
         throw NotImplementedError("test")
     } else {
         println("its #$i")
@@ -133,8 +134,16 @@ class ElasticsearchProvider(
         client.search(searchRequest, RequestOptions.DEFAULT)
     }
 
-    override fun close() = wrapError {
-        client.close()
+    override fun close() {
+        val logger = LoggerFactory.getLogger(this::class.java)
+        logger.warn("close elasticsearch client")
+        runCatching {
+            clientR.close()
+            client.close()
+        }.onFailure {
+            logger.error("got error when close elasticsearch client")
+            it.printStackTrace(System.err)
+        }
     }
 
 }
