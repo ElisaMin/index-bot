@@ -1,6 +1,7 @@
 package com.tgse.index.infrastructure.provider
 
 import com.tgse.index.ElasticProperties
+import com.tgse.index.ElasticSearchException
 import org.apache.http.HttpHost
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest
 import org.elasticsearch.action.delete.DeleteRequest
@@ -19,118 +20,122 @@ import org.elasticsearch.client.indices.CreateIndexRequest
 import org.elasticsearch.client.indices.GetIndexRequest
 import org.elasticsearch.index.query.QueryBuilder
 import org.elasticsearch.index.query.QueryBuilders
-import org.springframework.retry.annotation.Retryable
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 @Component
-@Retryable
 class ElasticsearchProvider(
     elasticProperties: ElasticProperties
 ) : AutoCloseable {
 
-    private val client = RestHighLevelClient(
-        RestClient.builder(
-            HttpHost(elasticProperties.hostname, elasticProperties.port, elasticProperties.schema),
+    private inline fun <T> wrapError(crossinline block:()->T):T = runCatching(block).getOrElse {
+        throw ElasticSearchException(it)
+    }
+    private val client = wrapError {
+        @Suppress("DEPRECATION")
+        RestHighLevelClient(
+            RestClient.builder(
+                HttpHost(elasticProperties.hostname, elasticProperties.port, elasticProperties.schema),
+            )
         )
-    )
+    }
 
     /**
      * 检查索引是否存在
      */
-    fun checkIndexExist(indexName: String): Boolean {
+    fun checkIndexExist(indexName: String): Boolean = wrapError {
         val getRequest = GetIndexRequest(indexName)
-        return client.indices().exists(getRequest, RequestOptions.DEFAULT)
+        client.indices().exists(getRequest, RequestOptions.DEFAULT)
     }
 
     /**
      * 创建索引
      */
-    fun createIndex(indexName: String): Boolean {
+    fun createIndex(indexName: String) = wrapError {
         val createRequest = CreateIndexRequest(indexName)
         val response = client.indices().create(createRequest, RequestOptions.DEFAULT)
-        return response.isAcknowledged
+        response.isAcknowledged
     }
 
     /**
      * 创建索引
      */
-    fun createIndex(createRequest: CreateIndexRequest): Boolean {
+    fun createIndex(createRequest: CreateIndexRequest): Boolean = wrapError {
         val response = client.indices().create(createRequest, RequestOptions.DEFAULT)
-        return response.isAcknowledged
+        response.isAcknowledged
     }
 
     /**
      * 删除索引
      */
-    fun deleteIndex(indexName: String): Boolean {
+    fun deleteIndex(indexName: String): Boolean = wrapError {
         val deleteRequest = DeleteIndexRequest(indexName)
         val response = client.indices().delete(deleteRequest, RequestOptions.DEFAULT)
-        return response.isAcknowledged
+        response.isAcknowledged
     }
 
     /**
      * 索引文档
      */
-    fun indexDocument(request: IndexRequest): Boolean {
-        return try {
+    fun indexDocument(request: IndexRequest): Boolean = wrapError {
+        runCatching {
             client.index(request, RequestOptions.DEFAULT)
-            true
-        } catch (e: Throwable) {
-            e.printStackTrace()
-            false
-        }
+        }.onFailure {it.printStackTrace()}.isSuccess
     }
 
     /**
      * 更新文档
      */
-    fun updateDocument(request: UpdateRequest): Boolean {
-        return try {
+    fun updateDocument(request: UpdateRequest): Boolean = wrapError {
+        runCatching {
             client.update(request, RequestOptions.DEFAULT)
-            true
-        } catch (e: Throwable) {
-            e.printStackTrace()
-            false
-        }
+        }.onFailure { it.printStackTrace() }.isSuccess
     }
 
     /**
      * 获取文档
      */
-    fun getDocument(request: GetRequest): GetResponse {
-        return client.get(request, RequestOptions.DEFAULT)
+    fun getDocument(request: GetRequest): GetResponse = wrapError {
+        client.get(request, RequestOptions.DEFAULT)
     }
 
     /**
      * 删除文档
      */
-    fun deleteDocument(request: DeleteRequest): DeleteResponse {
-        return client.delete(request, RequestOptions.DEFAULT)
+    fun deleteDocument(request: DeleteRequest): DeleteResponse = wrapError {
+        client.delete(request, RequestOptions.DEFAULT)
     }
 
     /**
      * 文档数量
      */
-    fun countOfDocument(index: String): Long {
+    fun countOfDocument(index: String): Long = wrapError {
         val countRequest = CountRequest(index)
         countRequest.query(QueryBuilders.matchAllQuery())
         val response = client.count(countRequest, RequestOptions.DEFAULT)
-        return response.count
+        response.count
     }
 
-    fun countOfQuery(index: String, query: QueryBuilder): Long {
+    fun countOfQuery(index: String, query: QueryBuilder): Long = wrapError {
         val countRequest = CountRequest(index)
         countRequest.query(query)
         val response = client.count(countRequest, RequestOptions.DEFAULT)
-        return response.count
+        response.count
     }
 
-    fun search(searchRequest: SearchRequest): SearchResponse {
-        return client.search(searchRequest, RequestOptions.DEFAULT)
+    fun search(searchRequest: SearchRequest): SearchResponse = wrapError {
+        client.search(searchRequest, RequestOptions.DEFAULT)
     }
 
     override fun close() {
-        client.close()
+        val logger = LoggerFactory.getLogger(this::class.java)
+        logger.warn("close elasticsearch client")
+        runCatching {
+            client.close()
+        }.onFailure {
+            logger.error("got error when close elasticsearch client")
+            it.printStackTrace(System.err)
+        }
     }
 
 }

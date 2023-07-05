@@ -56,11 +56,17 @@ dependencies {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions {
-        freeCompilerArgs = listOf("-Xjsr305=strict")
+        freeCompilerArgs = listOf("-Xjsr305=strict","-Xno-call-assertions","-Xno-receiver-assertions","-Xno-param-assertions")
         jvmTarget = "17"
     }
 }
-
+kotlin {
+    sourceSets.all {
+       languageSettings {
+           languageVersion = "2.0"
+       }
+   }
+}
 tasks.withType<Test> {
    useJUnitPlatform()
 }

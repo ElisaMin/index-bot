@@ -1,109 +1,26 @@
 package com.tgse.index.infrastructure.provider
 
-import com.google.common.util.concurrent.MoreExecutors
-import com.pengrad.telegrambot.TelegramBot
-import com.pengrad.telegrambot.UpdatesListener
-import com.pengrad.telegrambot.model.BotCommand
 import com.pengrad.telegrambot.model.ChatMember
-import com.pengrad.telegrambot.model.Update
 import com.pengrad.telegrambot.model.request.ChatAction
 import com.pengrad.telegrambot.request.*
 import com.pengrad.telegrambot.response.*
 import com.tgse.index.BotProperties
 import com.tgse.index.ProxyProperties
-import com.tgse.index.SetCommandException
-import io.reactivex.rxjava3.core.Observable
-import io.reactivex.rxjava3.subjects.BehaviorSubject
-import okhttp3.OkHttpClient
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.stereotype.Component
-import java.net.InetSocketAddress
-import java.net.Proxy
 import java.util.*
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
 
 @Component
 class BotProvider(
-    private val botProperties: BotProperties,
-    private val proxyProperties: ProxyProperties,
+    botProperties: BotProperties,
+    proxyProperties: ProxyProperties,
     @Value("\${secretary.autoDeleteMsgCycle}")
     private val autoDeleteMsgCycle: Long,
     @Value("\${group.approve.id}")
+    app: ConfigurableApplicationContext,
     private val approveGroupChatId: Long,
-) {
-    private val logger = LoggerFactory.getLogger(this::class.java)
-
-    private val requestExecutorService = run {
-        val pool = Executors.newCachedThreadPool {
-            val thread = Thread(it, "用户请求处理线程")
-            thread.isDaemon = true
-            thread
-        }
-        MoreExecutors.listeningDecorator(pool)
-    }
-
-    private val bot: TelegramBot = run {
-        if (proxyProperties.enabled) {
-            val socketAddress = InetSocketAddress(proxyProperties.ip, proxyProperties.port)
-            val proxy = Proxy(proxyProperties.type, socketAddress)
-            val okHttpClient = OkHttpClient().newBuilder().proxy(proxy).build()
-            TelegramBot.Builder(botProperties.token).okHttpClient(okHttpClient).build()
-        } else {
-            TelegramBot(botProperties.token)
-        }
-    }
-
-    private val updateSubject = BehaviorSubject.create<Update>()
-    val updateObservable: Observable<Update> = updateSubject.distinct()
-    val username: String by lazy {
-        val request = GetMe()
-        val response = bot.execute(request)
-        response.user().username()
-    }
-
-    init {
-        setCommands()
-        handleUpdate()
-        logger.info("Bot ready.")
-    }
-
-    private fun setCommands() {
-        try {
-            val setCommands = SetMyCommands(
-                BotCommand("start", "开 始"),
-                BotCommand("enroll", "申请收录"),
-                BotCommand("update", "修改收录信息"),
-                BotCommand("mine", "我提交的"),
-                BotCommand("cancel", "取消操作"),
-                BotCommand("help", "帮 助"),
-            )
-            val setResponse = bot.execute(setCommands)
-            if (!setResponse.isOk)
-                throw SetCommandException(setResponse.description())
-        } catch (e: Throwable) {
-            sendErrorMessage(e)
-        }
-    }
-
-    private fun handleUpdate() {
-        bot.setUpdatesListener { updates ->
-            val futures = mutableListOf<Future<*>>()
-            updates.forEach { update ->
-                futures.add(requestExecutorService.submit { updateSubject.onNext(update) })
-            }
-            for (future in futures) {
-                try {
-                    future.get()
-                } catch (e: Throwable) {
-                    e.printStackTrace()
-                    throw e
-                }
-            }
-            UpdatesListener.CONFIRMED_UPDATES_ALL
-        }
-    }
+): BotUpdateProvider(botProperties,proxyProperties,app) {
 
     fun send(message: SendMessage): SendResponse {
         return bot.execute(message)
@@ -182,15 +99,6 @@ class BotProvider(
         return bot.execute(action)
     }
 
-    fun sendErrorMessage(error: Throwable) {
-        try {
-            val msgContent = "Error:\n" + (error.message ?: error.stackTrace.copyOfRange(0, 4).joinToString("\n"))
-            val errorMessage = SendMessage(botProperties.creator, msgContent)
-            bot.execute(errorMessage)
-        } catch (e: Throwable) {
-            // ignore
-        }
-    }
     fun getApproveChatMemberSafe(memberId:Long) =
         bot.runCatching {
             execute(
@@ -221,11 +129,12 @@ class BotProvider(
                 else -> {
                     send(
                         SendMessage(approveGroupChatId,
-                        "检测到用户 @${it.user().username()}是群员！通过提交！"
-                    ))
+                            "检测到用户 @${it.user().username()}是群员！通过提交！"
+                        ))
                 }
             }
 
         }.getOrNull()
+
 
 }
