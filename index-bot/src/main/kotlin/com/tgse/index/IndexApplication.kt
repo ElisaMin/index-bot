@@ -1,13 +1,9 @@
 package com.tgse.index
 
-import com.tgse.index.infrastructure.provider.BotProvider
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.runApplication
-import org.springframework.context.ApplicationListener
-import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.event.ContextRefreshedEvent
 import org.springframework.scheduling.annotation.EnableScheduling
 import java.net.Proxy
 import kotlin.properties.Delegates
@@ -38,19 +34,7 @@ class ProxyProperties {
 
 @SpringBootApplication
 @EnableScheduling
-class IndexApplication {
-    @Bean
-    fun startBot(botProvider: BotProvider) = object : ApplicationListener<ContextRefreshedEvent> {
-        var callingTimes = 0
-        override fun onApplicationEvent(event: ContextRefreshedEvent) {
-            if (callingTimes++ > 0) {
-                throw IllegalStateException("startBot should only be called once")
-            } else {
-                botProvider.start()
-            }
-        }
-    }
-}
+class IndexApplication
 
 fun main(args: Array<String>) {
     runApplication<IndexApplication>(*args)

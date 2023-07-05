@@ -31,15 +31,8 @@ class ElasticsearchProvider(
     private inline fun <T> wrapError(crossinline block:()->T):T = runCatching(block).getOrElse {
         throw ElasticSearchException(it)
     }
-    var i = 0
-    val client get() = if (i++>4) wrapError {
-        throw NotImplementedError("test")
-    } else {
-        println("its #$i")
-        clientR
-    }
-
-    private val clientR = wrapError {
+    private val client = wrapError {
+        @Suppress("DEPRECATION")
         RestHighLevelClient(
             RestClient.builder(
                 HttpHost(elasticProperties.hostname, elasticProperties.port, elasticProperties.schema),
@@ -138,7 +131,6 @@ class ElasticsearchProvider(
         val logger = LoggerFactory.getLogger(this::class.java)
         logger.warn("close elasticsearch client")
         runCatching {
-            clientR.close()
             client.close()
         }.onFailure {
             logger.error("got error when close elasticsearch client")

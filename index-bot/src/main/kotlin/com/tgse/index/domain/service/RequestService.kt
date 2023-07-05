@@ -3,7 +3,6 @@ package com.tgse.index.domain.service
 import com.pengrad.telegrambot.model.Chat
 import com.pengrad.telegrambot.model.Update
 import com.pengrad.telegrambot.model.User
-import com.tgse.index.area.Group
 import com.tgse.index.domain.repository.BanListRepository
 import com.tgse.index.infrastructure.provider.BotProvider
 import io.reactivex.rxjava3.core.Observable
@@ -75,7 +74,7 @@ class RequestService(
     }
 
     private fun subscribeUpdate() {
-        botProvider.updateObservable.subscribe(
+        botProvider.observable.subscribe(
             { update ->
                 val request = makeBotRequest(update) ?: return@subscribe
                 request.chatId?.apply {
