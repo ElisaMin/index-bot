@@ -1,16 +1,22 @@
 package com.tgse.index.area.msgFactory
 
-import com.pengrad.telegrambot.model.request.InlineKeyboardButton
-import com.pengrad.telegrambot.model.request.InlineKeyboardMarkup
-import com.pengrad.telegrambot.model.request.ParseMode
-import com.pengrad.telegrambot.request.EditMessageText
-import com.pengrad.telegrambot.request.SendMessage
+
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.parseMode
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.disableWebPagePreview
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.SendMessage
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.replyMarkup
+import com.tgse.index.area.msgFactory.RecordMsgFactory.Companion.callbackData
 import com.tgse.index.infrastructure.provider.BotProvider
 import com.tgse.index.domain.service.ClassificationService
 import com.tgse.index.domain.service.RecordService
 import com.tgse.index.domain.service.ReplyService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
+import org.telegram.telegrambots.meta.api.methods.ParseMode
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 import java.util.*
 
 @Component
@@ -41,11 +47,15 @@ class ListMsgFactory(
             sb.append(item)
         }
         val keyboard = makeListPageKeyboardMarkup(keywords, totalCount, pageIndex, perPageSize, range)
-        return SendMessage(chatId, sb.toString())
-            .parseMode(ParseMode.HTML).disableWebPagePreview(true).replyMarkup(keyboard)
+        return SendMessage(chatId, sb.toString()).apply {
+            parseMode = ParseMode.HTML
+            disableWebPagePreview = true
+            replyMarkup = keyboard
+
+        }
     }
 
-    fun makeListNextPageMsg(chatId: Long, messageId: Int, keywords: String, pageIndex: Int): EditMessageText {
+    fun makeListNextPageMsg(chatId: Long, messageId: Int, keywords: String, pageIndex: Int) = EditMessageText().apply {
         val range = IntRange(((pageIndex - 1) * perPageSize), pageIndex * perPageSize)
         val (records, totalCount) = searchList(keywords, range.first)
         val sb = StringBuffer()
@@ -54,8 +64,12 @@ class ListMsgFactory(
             sb.append(item)
         }
         val keyboard = makeListPageKeyboardMarkup(keywords, totalCount, pageIndex, perPageSize, range)
-        return EditMessageText(chatId, messageId, sb.toString())
-            .parseMode(ParseMode.HTML).disableWebPagePreview(true).replyMarkup(keyboard)
+        this.chatId = chatId.toString()
+        this.messageId = messageId
+        this.text = sb.toString()
+        disableWebPagePreview = true
+        parseMode = ParseMode.HTML
+        replyMarkup = keyboard
     }
 
     private fun searchList(keywords: String, from: Int): Pair<MutableList<RecordService.Record>, Long> {
@@ -78,26 +92,15 @@ class ListMsgFactory(
         perPageSize: Int,
         range: IntRange
     ): InlineKeyboardMarkup {
+        val next = InlineKeyboardButton("下一页").callbackData("page:$keywords&${pageIndex + 1}")
+        val prev = InlineKeyboardButton("上一页").callbackData("page:$keywords&${pageIndex - 1}")
         return when {
             totalCount > perPageSize && range.first == 0 ->
-                InlineKeyboardMarkup(
-                    arrayOf(
-                        InlineKeyboardButton("下一页").callbackData("page:$keywords&${pageIndex + 1}"),
-                    )
-                )
+                InlineKeyboardMarkup(listOf(listOf(next)))
             totalCount > perPageSize && range.first != 0 && range.last < totalCount ->
-                InlineKeyboardMarkup(
-                    arrayOf(
-                        InlineKeyboardButton("上一页").callbackData("page:$keywords&${pageIndex - 1}"),
-                        InlineKeyboardButton("下一页").callbackData("page:$keywords&${pageIndex + 1}"),
-                    )
-                )
+                InlineKeyboardMarkup(listOf(listOf(prev,next)))
             totalCount > perPageSize && range.last >= totalCount ->
-                InlineKeyboardMarkup(
-                    arrayOf(
-                        InlineKeyboardButton("上一页").callbackData("page:$keywords&${pageIndex - 1}"),
-                    )
-                )
+                InlineKeyboardMarkup(listOf(listOf(prev)))
             else -> InlineKeyboardMarkup()
         }
     }

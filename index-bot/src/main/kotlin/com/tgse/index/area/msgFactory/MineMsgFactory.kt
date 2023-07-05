@@ -1,17 +1,23 @@
 package com.tgse.index.area.msgFactory
 
-import com.pengrad.telegrambot.model.User
-import com.pengrad.telegrambot.model.request.InlineKeyboardButton
-import com.pengrad.telegrambot.model.request.InlineKeyboardMarkup
-import com.pengrad.telegrambot.model.request.ParseMode
-import com.pengrad.telegrambot.request.EditMessageText
-import com.pengrad.telegrambot.request.SendMessage
+
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.parseMode
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.SendMessage
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.disableWebPagePreview
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.replyMarkup
+import com.tgse.index.area.msgFactory.RecordMsgFactory.Companion.callbackData
 import com.tgse.index.infrastructure.provider.BotProvider
 import com.tgse.index.domain.service.EnrollService
 import com.tgse.index.domain.service.RecordService
 import com.tgse.index.domain.service.ReplyService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
+import org.telegram.telegrambots.meta.api.methods.ParseMode
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText
+import org.telegram.telegrambots.meta.api.objects.User
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 
 @Component
 class MineMsgFactory(
@@ -23,18 +29,23 @@ class MineMsgFactory(
     private val perPageSize: Int
 ) : BaseMsgFactory(replyService, botProvider) {
 
-    fun makeListFirstPageMsg(user: User): SendMessage {
+    fun makeListFirstPageMsg(user: User) = SendMessage().apply {
         val (detail, keyboard) =
             makeListDetailAndKeyboard(user, 1) ?: Pair(replyService.messages["empty"], InlineKeyboardMarkup())
-        return SendMessage(user.id(), detail)
-            .parseMode(ParseMode.HTML).disableWebPagePreview(true).replyMarkup(keyboard)
+        detail?.let { text = it }
+        chatId = user.id.toString()
+        parseMode(ParseMode.HTML).disableWebPagePreview(true).replyMarkup(keyboard)
     }
 
-    fun makeListNextPageMsg(user: User, messageId: Int, pageIndex: Int): EditMessageText {
+    fun makeListNextPageMsg(user: User, messageId: Int, pageIndex: Int) = EditMessageText().apply {
         val (detail, keyboard) =
             makeListDetailAndKeyboard(user, pageIndex) ?: Pair(replyService.messages["empty"], InlineKeyboardMarkup())
-        return EditMessageText(user.id().toLong(), messageId, detail)
-            .parseMode(ParseMode.HTML).disableWebPagePreview(true).replyMarkup(keyboard)
+        detail?.let { text = it }
+        chatId = user.id.toString()
+        setMessageId(messageId)
+        parseMode = ParseMode.HTML
+        disableWebPagePreview = true
+        replyMarkup = keyboard
     }
 
     private fun makeListDetailAndKeyboard(
@@ -77,24 +88,29 @@ class MineMsgFactory(
         return when {
             totalCount > perPageSize && range.first == 0 ->
                 InlineKeyboardMarkup(
-                    arrayOf(
+                    listOf(
                         InlineKeyboardButton("下一页").callbackData("mine:${pageIndex + 1}"),
                     )
                 )
             totalCount > perPageSize && range.first != 0 && range.last < totalCount ->
                 InlineKeyboardMarkup(
-                    arrayOf(
+                    listOf(
                         InlineKeyboardButton("上一页").callbackData("mine:${pageIndex - 1}"),
                         InlineKeyboardButton("下一页").callbackData("mine:${pageIndex + 1}"),
                     )
                 )
             totalCount > perPageSize && range.last >= totalCount ->
                 InlineKeyboardMarkup(
-                    arrayOf(
+                    listOf(
                         InlineKeyboardButton("上一页").callbackData("mine:${pageIndex - 1}"),
                     )
                 )
             else -> InlineKeyboardMarkup()
+        }
+    }
+    companion object {
+        fun InlineKeyboardMarkup(vararg listOf: List<InlineKeyboardButton>): InlineKeyboardMarkup {
+            return InlineKeyboardMarkup(listOf(*listOf))
         }
     }
 

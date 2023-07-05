@@ -1,7 +1,8 @@
 package com.tgse.index.domain.repository
 
-import com.pengrad.telegrambot.model.User
+
 import com.tgse.index.domain.service.TelegramService
+import org.telegram.telegrambots.meta.api.objects.User
 
 interface TelegramRepository {
 
@@ -18,11 +19,5 @@ interface TelegramRepository {
 }
 
 fun User.nick(): String {
-    val firstName =
-        if (firstName() == null) ""
-        else firstName()
-    val lastName =
-        if (lastName() == null) ""
-        else lastName()
     return "$firstName$lastName"
 }

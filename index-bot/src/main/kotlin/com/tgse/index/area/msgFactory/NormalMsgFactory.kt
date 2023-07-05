@@ -1,16 +1,20 @@
 package com.tgse.index.area.msgFactory
 
-import com.pengrad.telegrambot.model.request.InlineKeyboardMarkup
-import com.pengrad.telegrambot.model.request.ParseMode
-import com.pengrad.telegrambot.model.request.ReplyKeyboardMarkup
-import com.pengrad.telegrambot.request.EditMessageReplyMarkup
-import com.pengrad.telegrambot.request.SendMessage
+
 import com.tgse.index.MismatchException
 import com.tgse.index.domain.service.BlackListService
 import com.tgse.index.infrastructure.provider.BotProvider
 import com.tgse.index.domain.service.ClassificationService
 import com.tgse.index.domain.service.ReplyService
 import org.springframework.stereotype.Component
+import org.telegram.telegrambots.meta.api.methods.ParseMode
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboard
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
 
 @Component
 class NormalMsgFactory(
@@ -18,6 +22,13 @@ class NormalMsgFactory(
     override val replyService: ReplyService,
     override val botProvider: BotProvider
 ) : BaseMsgFactory(replyService, botProvider) {
+    @Suppress("NOTHING_TO_INLINE")
+    companion object {
+        inline fun SendMessage(chatId: Long, content: String): SendMessage = SendMessage(chatId.toString(), content)
+        inline fun SendMessage.parseMode(html: String): SendMessage = apply { parseMode = html }
+        inline fun SendMessage.disableWebPagePreview(b: Boolean): SendMessage = apply { disableWebPagePreview = b }
+        inline fun SendMessage.replyMarkup(keyboard: ReplyKeyboard): SendMessage = apply { replyMarkup = keyboard }
+    }
 
     fun makeStartMsg(chatId: Long): SendMessage {
         val content = replyService.messages["start"]!!.replace("\\{bot.username\\}".toRegex(), botProvider.username)
@@ -25,8 +36,10 @@ class NormalMsgFactory(
         return SendMessage(chatId, content).disableWebPagePreview(false).replyMarkup(keyboard)
     }
 
-    fun makeClearMarkupMsg(chatId: Long, messageId: Int): EditMessageReplyMarkup {
-        return EditMessageReplyMarkup(chatId, messageId).replyMarkup(InlineKeyboardMarkup())
+    fun makeClearMarkupMsg(chatId: Long, messageId: Int) = EditMessageReplyMarkup().apply {
+        this.chatId = chatId.toString()
+        this.messageId = messageId
+        this.replyMarkup = InlineKeyboardMarkup()
     }
 
     fun makeStatisticsDailyReplyMsg(
@@ -87,7 +100,7 @@ class NormalMsgFactory(
 
     fun makeExceptionMsg(chatId: Long, e: Exception): SendMessage {
         return when (e) {
-            is MismatchException -> SendMessage(chatId, e.message)
+            is MismatchException -> SendMessage(chatId, e.message!!)
             else -> SendMessage(chatId, "未知错误")
         }
     }
@@ -108,19 +121,24 @@ class NormalMsgFactory(
         val countInRow = 3
         // 将多个类型按照countInRow拆分为多行
         var counter = 0
-        val rows = mutableListOf<Array<String>>()
+        val rows = mutableListOf<List<String>>()
         while (counter < classificationService.classifications.size) {
             var endOfIndex = counter + countInRow
             endOfIndex = if (endOfIndex <= classificationService.classifications.size) endOfIndex else classificationService.classifications.size
             val row = classificationService.classifications.copyOfRange(counter, endOfIndex)
             counter += countInRow
-            rows.add(row)
+            rows.add(row.toList())
         }
         // 制作键盘
-        val keyboard = ReplyKeyboardMarkup(*rows.toTypedArray())
-        keyboard.oneTimeKeyboard(false)
-        keyboard.resizeKeyboard(true)
-        keyboard.selective(true)
-        return keyboard
+        rows.map {
+            KeyboardRow(it.map { s -> KeyboardButton(s) })
+        }.let {
+            ReplyKeyboardMarkup(it)
+        }.apply {
+            oneTimeKeyboard = false
+            resizeKeyboard = true
+            selective = true
+            return this
+        }
     }
 }

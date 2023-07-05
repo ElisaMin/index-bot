@@ -2,6 +2,7 @@ package com.tgse.index.area.execute
 
 import com.tgse.index.MismatchException
 import com.tgse.index.area.msgFactory.NormalMsgFactory
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.disableWebPagePreview
 import com.tgse.index.area.msgFactory.RecordMsgFactory
 import com.tgse.index.infrastructure.provider.BotProvider
 import com.tgse.index.domain.service.*
@@ -21,8 +22,8 @@ class RecordExecute(
 ) {
 
     fun executeByRecordButton(request: RequestService.BotRequest) {
-        val user = request.update.callbackQuery().from()
-        val callbackData = request.update.callbackQuery().data()
+        val user = request.update.callbackQuery.from
+        val callbackData = request.update.callbackQuery.data
         val callbackDataVal = callbackData.replace("update:", "").replace("record-class:", "").split("&")
         val field = callbackDataVal[0]
         val record = recordService.getRecord(callbackDataVal[1])!!
@@ -80,13 +81,13 @@ class RecordExecute(
         val callbackDataVal = statusCallbackData.replace("update:", "").split("&")
         val field = callbackDataVal[0]
         val uuid = callbackDataVal[1]
-        val msgContent = request.update.message().text()
+        val msgContent = request.update.message.text
         try {
             val record = recordService.getRecord(uuid)!!
             val newRecord = when (field) {
                 "link" -> {
                     // 获取收录内容
-                    val username = request.update.message().text().replaceFirst("@", "").replaceFirst("https://t.me/", "")
+                    val username = request.update.message.text.replaceFirst("@", "").replaceFirst("https://t.me/", "")
                     if (record.username == username) throw MismatchException("链接未发生改变")
                     val telegramMod = telegramService.getTelegramMod(username)
                     // 收录对象黑名单检测

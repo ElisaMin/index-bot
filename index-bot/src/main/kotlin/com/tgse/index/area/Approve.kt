@@ -1,21 +1,27 @@
 package com.tgse.index.area
 
-import com.pengrad.telegrambot.model.request.ParseMode
-import com.pengrad.telegrambot.request.AnswerCallbackQuery
-import com.pengrad.telegrambot.request.SendMessage
+
 import com.tgse.index.area.execute.BlacklistExecute
 import com.tgse.index.area.execute.EnrollExecute
 import com.tgse.index.area.msgFactory.NormalMsgFactory
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.SendMessage
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.disableWebPagePreview
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.parseMode
 import com.tgse.index.area.msgFactory.RecordMsgFactory
 import com.tgse.index.domain.repository.nick
 import com.tgse.index.domain.service.*
 import com.tgse.index.infrastructure.provider.BotLifecycle
 import com.tgse.index.infrastructure.provider.BotProvider
+import com.tgse.index.infrastructure.provider.ElasticSearchScope
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery
+import org.telegram.telegrambots.meta.api.methods.ParseMode
+import org.telegram.telegrambots.meta.api.objects.*
 import java.util.*
+
 
 @Service
 class Approve(
@@ -30,6 +36,7 @@ class Approve(
     private val awaitStatusService: AwaitStatusService,
     private val normalMsgFactory: NormalMsgFactory,
     private val recordMsgFactory: RecordMsgFactory,
+    private val scope:ElasticSearchScope,
     @Value("\${group.approve.id}")
     private val approveGroupChatId: Long,
     @Value("\${secretary.autoDeleteMsgCycle}")
@@ -46,18 +53,18 @@ class Approve(
         makeCoroutine {
             requestService.blockFeedbacks(::handle)
         }
-        subscribeSubmitEnroll()
-        subscribeApproveEnroll()
-        subscribeDeleteRecord()
+        enrollService.subscribeEnrolls(::handle)
+        enrollService.subscribeApproves(::handleApprove)
+        recordService.subscribeDeletes(::handleDelete)
     }
 
     private suspend inline fun handle(request: RequestService.BotApproveRequest) {
         runCatching {
             val commandRegexResult =
-                if (request.update.message()?.text() == null) null
-                else commandRegex.find(request.update.message().text())
+                if (request.update.message?.text == null) null
+                else commandRegex.find(request.update.message.text)
             when {
-                request.update.callbackQuery() != null -> {
+                request.update.callbackQuery != null -> {
                     botProvider.sendTyping(request.chatId)
                     executeByButton(request)
                 }
@@ -85,31 +92,30 @@ class Approve(
         runCatching {
             val recordMsg = recordMsgFactory.makeFeedbackMsg(approveGroupChatId, record)
             botProvider.send(recordMsg)
-            val feedbackMsg = SendMessage(approveGroupChatId, "ID：${user.id()}\n用户：${user.nick()}\n反馈：$content")
+            val feedbackMsg = SendMessage(approveGroupChatId, "ID：${user.id}\n用户：${user.nick()}\n反馈：$content")
             botProvider.send(feedbackMsg)
         }.onFailure {e ->
             logger.error("Approve",e)
             botProvider.sendErrorMessage(e)
         }
     }
-    private fun subscribeSubmitEnroll(): Nothing = recordService.blockWithContext {
-        enrollService.submits.collect { enroll ->
-            runCatching {
-                val msg = recordMsgFactory.makeApproveMsg(approveGroupChatId, enroll)
-                botProvider.send(msg)
-            }.onFailure { e ->
-                logger.error("subscribeSubmitEnroll.error", e)
-                botProvider.sendErrorMessage(e)
-            }
+    private suspend inline fun handle(enroll:EnrollService.Enroll) {
+        runCatching {
+            val msg = recordMsgFactory.makeApproveMsg(approveGroupChatId, enroll)
+            botProvider.send(msg)
+        }.onFailure { e ->
+            logger.error("subscribeSubmitEnroll.error", e)
+            botProvider.sendErrorMessage(e)
         }
     }
 
-    private fun subscribeApproveEnroll() = enrollService.subscribeApproves {(enroll, manager, isPassed) ->
+    private suspend inline fun handleApprove(approve:Triple<EnrollService.Enroll, User, Boolean>) {
+        val (enroll, user, isPassed) = approve
         runCatching {
-            val msg = recordMsgFactory.makeApproveResultMsg(approveGroupChatId, enroll, manager, isPassed)
+            val msg = recordMsgFactory.makeApproveResultMsg(approveGroupChatId, enroll, user, isPassed)
             val msgResponse = botProvider.send(msg)
             if (!isPassed) {
-                val editMsg = normalMsgFactory.makeClearMarkupMsg(approveGroupChatId, msgResponse.message().messageId())
+                val editMsg = normalMsgFactory.makeClearMarkupMsg(approveGroupChatId, msgResponse.messageId)
                 botProvider.sendDelay(editMsg, autoDeleteMsgCycle * 1000)
             }
         }.onFailure { e ->
@@ -117,19 +123,18 @@ class Approve(
             botProvider.sendErrorMessage(e)
         }
     }
-    private fun subscribeDeleteRecord(): Nothing = recordService.blockWithContext {
-        recordService.deletes.collect { next ->
-            runCatching {
-                val msg = normalMsgFactory.makeRemoveRecordReplyMsg(
-                    approveGroupChatId,
-                    next.second.nick(),
-                    next.first.title
-                )
-                botProvider.send(msg)
-            }.onFailure { e ->
-                logger.error("Approve.error", e)
-                botProvider.sendErrorMessage(e)
-            }
+
+    private suspend inline fun handleDelete(next:Pair<RecordService.Record,User>) {
+        runCatching {
+            val msg = normalMsgFactory.makeRemoveRecordReplyMsg(
+                approveGroupChatId,
+                next.second.nick(),
+                next.first.title
+            )
+            botProvider.send(msg)
+        }.onFailure { e ->
+            logger.error("Approve.error", e)
+            botProvider.sendErrorMessage(e)
         }
     }
 
@@ -169,10 +174,10 @@ class Approve(
     }
 
     private fun executeByButton(request: RequestService.BotApproveRequest) {
-        val answer = AnswerCallbackQuery(request.update.callbackQuery().id())
+        val answer = AnswerCallbackQuery(request.update.callbackQuery.id)
         botProvider.send(answer)
 
-        val callbackData = request.update.callbackQuery().data()
+        val callbackData = request.update.callbackQuery.data
         when {
             callbackData.startsWith("approve") || callbackData.startsWith("enroll-class") -> {
                 enrollExecute.executeByEnrollButton(EnrollExecute.Type.Approve, request)
@@ -181,7 +186,7 @@ class Approve(
                 blacklistExecute.executeByBlacklistButton(request)
             }
             callbackData.startsWith("remove") -> {
-                val manager = request.update.callbackQuery().from()
+                val manager = request.update.callbackQuery.from
                 val recordUUID = callbackData.replace("remove:", "")
                 recordService.deleteRecord(recordUUID, manager)
                 val msg = normalMsgFactory.makeClearMarkupMsg(request.chatId, request.messageId!!)

@@ -1,8 +1,8 @@
 package com.tgse.index.domain.repository
 
-import com.pengrad.telegrambot.model.User
+
 import com.tgse.index.domain.service.RecordService
-import kotlinx.coroutines.CoroutineScope
+import org.telegram.telegrambots.meta.api.objects.User
 
 interface RecordRepository {
 

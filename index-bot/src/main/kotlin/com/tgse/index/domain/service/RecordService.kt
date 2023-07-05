@@ -1,21 +1,16 @@
 package com.tgse.index.domain.service
 
-import com.pengrad.telegrambot.model.Update
-import com.pengrad.telegrambot.model.User
+
 import com.tgse.index.domain.repository.RecordRepository
 import com.tgse.index.domain.repository.TelegramRepository
 import com.tgse.index.infrastructure.provider.ElasticSearchScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.channels.SendChannel
-import kotlinx.coroutines.channels.broadcast
-import kotlinx.coroutines.channels.onFailure
-import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.springframework.stereotype.Service
+import org.telegram.telegrambots.meta.api.objects.User
 import java.util.*
 
 @Service
@@ -23,7 +18,7 @@ class RecordService(
     private val recordRepository: RecordRepository,
     private val scope: ElasticSearchScope,
     private val telegramRepository: TelegramRepository,
-):AutoCloseable {
+) {
 
     data class Record(
         val uuid: String,
@@ -47,17 +42,16 @@ class RecordService(
     )
     fun <R : Any?> blockWithContext(block:suspend CoroutineScope.()->R) = runBlocking(context = scope.coroutineContext,block)
 
-    private var updateSender:SendChannel<Record>?=null
-    private var deleteSender:SendChannel<Pair<Record,User>>?=null
-    val updated = callbackFlow {
-        updateSender = this
-    }.cancellable()
-    val deletes = callbackFlow {
-        deleteSender = this
-    }
-    fun subscribeUpdate(onUpdate:(Record)->Unit) = scope.launch {
+    private val updated = MutableSharedFlow<Record>()
+    private val deletes = MutableSharedFlow<Pair<Record, User>>()
+
+    fun subscribeUpdates(onUpdate:FlowCollector<Record>) = scope.launch {
         updated.collect(onUpdate)
     }
+    fun subscribeDeletes(onDelete:FlowCollector<Pair<Record,User>>) = scope.launch {
+        deletes.collect(onDelete)
+    }
+
 
     fun searchRecordsByClassification(classification: String, from: Int, size: Int): Pair<MutableList<Record>, Long> = blockWithContext {
         recordRepository.searchRecordsByClassification(classification, from, size)
@@ -86,7 +80,7 @@ class RecordService(
     fun updateRecord(record: Record) = blockWithContext {
         val newRecord = record.copy(updateTime = Date().time)
         recordRepository.updateRecord(newRecord)
-        updateSender!!.send(newRecord)
+        updated.emit(newRecord)
     }
 
     fun deleteRecord(uuid: String, manager: User) = blockWithContext {
@@ -103,9 +97,6 @@ class RecordService(
         runCatching {
             recordRepository.getRecord(uuid)
         }.getOrNull()
-    }
-
-    override fun close() {
     }
 
 }

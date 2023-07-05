@@ -6,7 +6,7 @@ import org.springframework.beans.factory.DisposableBean
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-abstract class BotLifecycle: DisposableBean, CoroutineScope by CoroutineScope(userRequestDispatcher) {
+abstract class BotLifecycle: CoroutineScope by CoroutineScope(userRequestDispatcher), DisposableBean {
 
     @Suppress("NOTHING_TO_INLINE")
     protected inline fun makeCoroutine (noinline block:suspend CoroutineScope.() ->Unit ) = launch(
@@ -19,11 +19,11 @@ abstract class BotLifecycle: DisposableBean, CoroutineScope by CoroutineScope(us
     )
 
     override fun destroy() {
-        logger.warn("destroying ")
         cancel()
+        logger.info("BotLifecycle destroyed")
     }
     companion object {
-        private val logger = LoggerFactory.getLogger(this::class.java)
+        private val logger = LoggerFactory.getLogger(BotLifecycle::class.java)
         @JvmStatic
         protected val pool: ExecutorService = Executors.newCachedThreadPool {
             Thread(it).apply {

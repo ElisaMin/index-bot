@@ -1,8 +1,6 @@
 package com.tgse.index.domain.service
 
-import com.pengrad.telegrambot.model.Chat
-import com.pengrad.telegrambot.model.Update
-import com.pengrad.telegrambot.model.User
+
 import com.tgse.index.domain.repository.BanListRepository
 import com.tgse.index.infrastructure.provider.BotLifecycle
 import com.tgse.index.infrastructure.provider.BotProvider
@@ -12,6 +10,9 @@ import kotlinx.coroutines.flow.filterIsInstance
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
+import org.telegram.telegrambots.meta.api.objects.Message
+import org.telegram.telegrambots.meta.api.objects.Update
+import org.telegram.telegrambots.meta.api.objects.User
 
 /**
  * 信息来源分水岭
@@ -27,7 +28,7 @@ class RequestService(
 
     open class BotRequest(
         open val chatId: Long?,
-        @Suppress("unused") open val chatType: Chat.Type?,
+//        @Suppress("unused") open val chatType: Chat.Type?,
         open val messageId: Int?,
         open val update: Update
     )
@@ -38,7 +39,7 @@ class RequestService(
         override val update: Update
     ) : BotRequest(
         chatId,
-        Chat.Type.Private,
+//        Chat.Type.Private,
         messageId,
         update
     )
@@ -49,7 +50,7 @@ class RequestService(
         override val update: Update
     ) : BotRequest(
         chatId,
-        Chat.Type.group,
+//        Chat.Type.group,
         messageId,
         update
     )
@@ -60,7 +61,7 @@ class RequestService(
         override val update: Update
     ) : BotRequest(
         chatId,
-        Chat.Type.group,
+//        Chat.Type.group,
         messageId,
         update
     )
@@ -93,32 +94,32 @@ class RequestService(
     }
     private fun makeBotRequest(update: Update): BotRequest? {
         // 仅处理文字信息或按钮回执
-        val messageContentIsNull = update.message() == null || update.message().text() == null
-        if (messageContentIsNull && update.callbackQuery() == null) return null
+        val messageContentIsNull = update.message == null || update.message.text == null
+        if (messageContentIsNull && update.callbackQuery == null) return null
 
         // 获取概要内容
-        val callbackQuery = update.callbackQuery()
+        val callbackQuery = update.callbackQuery
 
         val chatType = when {
-            update.message() == null && callbackQuery == null -> null
-            update.message() != null -> update.message().chat().type()
-            callbackQuery != null -> callbackQuery.message().chat().type()
+            update.message == null && callbackQuery == null -> null
+            update.message != null -> update.message.chat.type
+            callbackQuery != null -> callbackQuery.message.chat.type
             else -> null
         }
 
         val chatId = when {
-            update.message() == null && callbackQuery == null -> null
-            callbackQuery?.message() != null -> callbackQuery.message().chat().id()
-            callbackQuery != null -> callbackQuery.from().id().toLong()
-            update.message() != null -> update.message().chat().id()
+            update.message == null && callbackQuery == null -> null
+            callbackQuery?.message != null -> callbackQuery.message.chat.id
+            callbackQuery != null -> callbackQuery.from.id.toLong()
+            update.message != null -> update.message.chat.id
             else -> null
         }
 
-        val messageId = callbackQuery?.message()?.messageId()
+        val messageId = callbackQuery?.message?.messageId
 
-        return when (chatType) {
-            Chat.Type.Private -> BotPrivateRequest(chatId!!, messageId, update)
-            Chat.Type.supergroup, Chat.Type.group -> {
+        return when (chatType?.lowercase()) {
+            "private" -> BotPrivateRequest(chatId!!, messageId, update)
+            "supergroup", "group" -> {
                 if (chatId == approveGroupChatId) BotApproveRequest(chatId, messageId, update)
                 else BotGroupRequest(chatId!!, messageId, update)
             }

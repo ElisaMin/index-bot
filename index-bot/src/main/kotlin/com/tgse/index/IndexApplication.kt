@@ -3,10 +3,11 @@ package com.tgse.index
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.runApplication
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.EnableScheduling
-import java.net.Proxy
-import kotlin.jvm.Throws
+import org.telegram.telegrambots.bots.DefaultBotOptions
+import org.telegram.telegrambots.bots.DefaultBotOptions.ProxyType
 import kotlin.properties.Delegates
 
 @Configuration
@@ -28,15 +29,29 @@ class ElasticProperties {
 @ConfigurationProperties(prefix = "proxy")
 class ProxyProperties {
     var enabled by Delegates.notNull<Boolean>()
-    var type by Delegates.notNull<Proxy.Type>()
+    var type by Delegates.notNull<ProxyType>()
     var ip by Delegates.notNull<String>()
     var port by Delegates.notNull<Int>()
 }
 
+
+
 @SpringBootApplication
 @EnableScheduling
-class IndexApplication
+class IndexApplication {
+    @Bean
+    fun defaultBotOption(proxyProperties:ProxyProperties) = DefaultBotOptions().apply {
+        if (proxyProperties.enabled) {
+            proxyType = proxyProperties.type
+            proxyHost = proxyProperties.ip
+            proxyPort = proxyProperties.port
+        }
+    }
+
+
+}
 
 fun main(args: Array<String>) {
     runApplication<IndexApplication>(*args)
 }
+

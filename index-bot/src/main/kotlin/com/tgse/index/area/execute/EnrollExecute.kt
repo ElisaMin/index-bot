@@ -27,7 +27,7 @@ class EnrollExecute(
     }
 
     fun executeByEnrollButton(type: Type, request: RequestService.BotRequest) {
-        val callbackData = request.update.callbackQuery().data()
+        val callbackData = request.update.callbackQuery.data
         val callbackDataVal =
             callbackData.replace("enroll:", "").replace("approve:", "").replace("enroll-class:", "").split("&")
         val field = callbackDataVal[0]
@@ -110,14 +110,14 @@ class EnrollExecute(
                 // 回执
                 botProvider.sendDeleteMessage(request.chatId!!, request.messageId!!)
                 awaitStatusService.clearAwaitStatus(request.chatId!!)
-                val manager = request.update.callbackQuery().from()
+                val manager = request.update.callbackQuery.from
                 enrollService.approveEnroll(enroll.uuid, manager, true)
             }
             // 不通过
             field == "fail" -> {
                 botProvider.sendDeleteMessage(request.chatId!!, request.messageId!!)
                 awaitStatusService.clearAwaitStatus(request.chatId!!)
-                val manager = request.update.callbackQuery().from()
+                val manager = request.update.callbackQuery.from
                 enrollService.approveEnroll(enroll.uuid, manager, false)
             }
         }
@@ -128,7 +128,7 @@ class EnrollExecute(
         val callbackDataVal = statusCallbackData.replace("enroll:", "").replace("approve:", "").split("&")
         val field = callbackDataVal[0]
         val uuid = callbackDataVal[1]
-        val msgContent = request.update.message().text()
+        val msgContent = request.update.message.text
         try {
             val enroll = enrollService.getEnroll(uuid)!!
             val newEnroll = when (field) {

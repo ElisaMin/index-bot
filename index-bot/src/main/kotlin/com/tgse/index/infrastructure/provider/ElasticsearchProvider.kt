@@ -3,6 +3,7 @@ package com.tgse.index.infrastructure.provider
 import com.tgse.index.ElasticProperties
 import com.tgse.index.ElasticSearchException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.apache.http.HttpHost
@@ -25,23 +26,32 @@ import org.elasticsearch.index.query.QueryBuilder
 import org.elasticsearch.index.query.QueryBuilders
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
-import kotlin.coroutines.EmptyCoroutineContext
 
 @Component
-class ElasticSearchScope:CoroutineScope by CoroutineScope(EmptyCoroutineContext)
+class ElasticSearchScope:CoroutineScope by CoroutineScope(Dispatchers.IO) {
+    fun destroy() {
+        cancel()
+    }
+}
 @Component
 class ElasticsearchProvider(
     elasticProperties: ElasticProperties,
     val scope: ElasticSearchScope
 ) : AutoCloseable {
 
-    private  inline fun <T> wrapError(crossinline block:()->T):T = runCatching(block).getOrElse {
-        throw ElasticSearchException(it)
+    private inline fun <T> wrapError(crossinline block:()->T):T = runBlocking(scope.coroutineContext) {
+        runCatching(block).getOrElse { throw ElasticSearchException(it) }
     }
 
     private val logger by lazy { LoggerFactory.getLogger(this::class.java) }
-
-    private val client = wrapError {
+    var i = 0
+    val client get() = if (i++>10) wrapError {
+        throw NotImplementedError("test")
+    } else {
+        println("its #$i")
+        clientR
+    }
+    private val clientR = wrapError {
         @Suppress("DEPRECATION")
         RestHighLevelClient(
             RestClient.builder(

@@ -1,7 +1,5 @@
 package com.tgse.index.infrastructure.repository
 
-import com.pengrad.telegrambot.model.User
-import com.tgse.index.ElasticSearchException
 import com.tgse.index.domain.repository.RecordRepository
 import com.tgse.index.domain.service.RecordService
 import com.tgse.index.domain.service.TelegramService
@@ -21,7 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder
 import org.elasticsearch.xcontent.XContentFactory
 import org.elasticsearch.xcontent.XContentType
 import org.springframework.stereotype.Repository
-import kotlin.jvm.Throws
+import org.telegram.telegrambots.meta.api.objects.User
 
 @Repository
 class RecordRepositoryImpl(
@@ -144,7 +142,7 @@ class RecordRepositoryImpl(
     override suspend fun searchRecordsByCreator(user: User, from: Int, size: Int): Pair<MutableList<RecordService.Record>, Long> {
         val searchRequest = SearchRequest(index)
         val searchSourceBuilder = SearchSourceBuilder()
-        val queryBuilder = QueryBuilders.matchQuery("createUser", user.id())
+        val queryBuilder = QueryBuilders.matchQuery("createUser", user.id)
         searchSourceBuilder.query(queryBuilder).from(from).size(size).sort("createTime", SortOrder.DESC)
         searchRequest.source(searchSourceBuilder)
         return searchRecords(searchRequest)

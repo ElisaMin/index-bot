@@ -1,6 +1,5 @@
 package com.tgse.index.infrastructure.repository
 
-import com.pengrad.telegrambot.model.User
 import com.tgse.index.domain.repository.EnrollRepository
 import com.tgse.index.domain.service.EnrollService
 import com.tgse.index.domain.service.TelegramService
@@ -17,6 +16,7 @@ import org.elasticsearch.search.sort.SortOrder
 import org.elasticsearch.xcontent.XContentBuilder
 import org.elasticsearch.xcontent.XContentFactory
 import org.springframework.stereotype.Repository
+import org.telegram.telegrambots.meta.api.objects.User
 
 @Repository
 class EnrollRepositoryImpl(
@@ -39,7 +39,7 @@ class EnrollRepositoryImpl(
         try {
             val searchRequest = SearchRequest(index)
             val searchSourceBuilder = SearchSourceBuilder()
-            val creatorMatch = QueryBuilders.matchQuery("createUser", user.id())
+            val creatorMatch = QueryBuilders.matchQuery("createUser", user.id)
             val statusMatch = QueryBuilders.matchQuery("isSubmit", true)
             val approveMatch = QueryBuilders.matchQuery("approve", null)
             val boolQuery = QueryBuilders.boolQuery().must(creatorMatch).must(statusMatch).must(approveMatch)

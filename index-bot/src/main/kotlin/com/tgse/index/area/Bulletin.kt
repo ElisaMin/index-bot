@@ -6,7 +6,12 @@ import com.tgse.index.infrastructure.provider.BotProvider
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
-
+import org.telegram.telegrambots.meta.api.methods.*
+import org.telegram.telegrambots.meta.api.methods.botapimethods.*
+import org.telegram.telegrambots.meta.api.methods.groupadministration.*
+import org.telegram.telegrambots.meta.api.methods.send.*
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.*
+import org.telegram.telegrambots.meta.api.objects.*
 /**
  * 公告板
  */
@@ -33,22 +38,20 @@ class Bulletin(
         val msg = bulletinMsgFactory.makeBulletinMsg(bulletinChatId, record)
         val response = botProvider.send(msg)
         // 补充公告消息ID
-        val newRecord = record.copy(bulletinMessageId = response.message().messageId())
+        val newRecord = record.copy(bulletinMessageId = response.messageId)
         recordService.addRecord(newRecord)
     }
 
     /**
      * 同步数据-更新公告
      */
-    private fun subscribeUpdateRecord(): Nothing = recordService.blockWithContext {
-        recordService.updated.collect { record ->
-            runCatching {
-                val msg = bulletinMsgFactory.makeBulletinMsg(bulletinChatId, record.bulletinMessageId!!, record)
-                botProvider.send(msg)
-            }.onFailure { e ->
-                botProvider.sendErrorMessage(e)
-                logger.error("Bulletin.subscribeUpdateRecord.error",e)
-            }
+    private fun subscribeUpdateRecord() = recordService.subscribeUpdates { record ->
+        runCatching {
+            val msg = bulletinMsgFactory.makeBulletinMsg(bulletinChatId, record.bulletinMessageId!!, record)
+            botProvider.send(msg)
+        }.onFailure { e ->
+            botProvider.sendErrorMessage(e)
+            logger.error("Bulletin.subscribeUpdateRecord.error",e)
         }
     }
 
@@ -56,15 +59,13 @@ class Bulletin(
     /**
      * 同步数据-删除公告
      */
-    private fun subscribeDeleteRecord(): Nothing = recordService.blockWithContext {
-        recordService.deletes.collect { (record,_) ->
-            runCatching {
-                val msg = bulletinMsgFactory.makeRemovedBulletinMsg(bulletinChatId, record.bulletinMessageId!!)
-                botProvider.send(msg)
-            }.onFailure { e ->
-                logger.error("Bulletin.subscribeDeleteRecord.error", e)
-                botProvider.sendErrorMessage(e)
-            }
+    private fun subscribeDeleteRecord() = recordService.subscribeDeletes { (record,_) ->
+        runCatching {
+            val msg = bulletinMsgFactory.makeRemovedBulletinMsg(bulletinChatId, record.bulletinMessageId!!)
+            botProvider.send(msg)
+        }.onFailure { e ->
+            logger.error("Bulletin.subscribeDeleteRecord.error", e)
+            botProvider.sendErrorMessage(e)
         }
     }
 

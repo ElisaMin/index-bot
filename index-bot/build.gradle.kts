@@ -36,14 +36,15 @@ dependencies {
    implementation("org.dom4j:dom4j:2.1.4")
    implementation("org.jsoup:jsoup:1.16.1")
    implementation("org.apache.commons:commons-text:1.10.0")
-   implementation("io.reactivex.rxjava3:rxjava:3.1.6")
+//   implementation("io.reactivex.rxjava3:rxjava:3.1.6")
    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-rx3:1.7.2")
+   implementation("org.telegram:telegrambots-spring-boot-starter:6.7.0")
 
 
-   // telegram
-   api("com.github.pengrad:java-telegram-bot-api:6.7.0") {
-       exclude(group = "com.google.code.gson")
-   }
+//   // telegram
+//   api("com.github.pengrad:java-telegram-bot-api:6.7.0") {
+//       exclude(group = "com.google.code.gson")
+//   }
    implementation("com.google.code.gson:gson:2.10.1")
    // await status
    implementation("io.github.pcmind:leveldb:1.2")

@@ -1,21 +1,28 @@
 package com.tgse.index.area
 
-import com.pengrad.telegrambot.model.User
-import com.pengrad.telegrambot.model.request.ParseMode
-import com.pengrad.telegrambot.request.*
+
 import com.tgse.index.area.execute.BlacklistExecute
 import com.tgse.index.area.execute.EnrollExecute
 import com.tgse.index.area.execute.RecordExecute
 import com.tgse.index.area.msgFactory.ListMsgFactory
 import com.tgse.index.area.msgFactory.MineMsgFactory
 import com.tgse.index.area.msgFactory.NormalMsgFactory
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.parseMode
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.disableWebPagePreview
+import com.tgse.index.area.msgFactory.NormalMsgFactory.Companion.SendMessage
 import com.tgse.index.area.msgFactory.RecordMsgFactory
 import com.tgse.index.infrastructure.provider.BotProvider
 import com.tgse.index.domain.repository.nick
 import com.tgse.index.domain.service.*
 import com.tgse.index.infrastructure.provider.BotLifecycle
+import com.tgse.index.infrastructure.provider.ElasticSearchScope
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery
+import org.telegram.telegrambots.meta.api.methods.ParseMode
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.objects.User
 import java.util.*
 
 /**
@@ -37,7 +44,8 @@ class Private(
     private val userService: UserService,
     private val blackListService: BlackListService,
     private val telegramService: TelegramService,
-    private val awaitStatusService: AwaitStatusService
+    private val awaitStatusService: AwaitStatusService,
+    private val scope: ElasticSearchScope
 ): BotLifecycle() {
 
     private val logger = LoggerFactory.getLogger(Private::class.java)
@@ -55,8 +63,8 @@ class Private(
             botProvider.sendTyping(request.chatId)
             // 回执
             when {
-                request.update.callbackQuery() != null -> executeByButton(request)
-                request.update.message().text().startsWith("/") -> executeByCommand(request)
+                request.update.callbackQuery != null -> executeByButton(request)
+                request.update.message.text.startsWith("/") -> executeByCommand(request)
                 awaitStatusService.getAwaitStatus(request.chatId) != null -> {
                     try {
                         val callbackData = awaitStatusService.getAwaitStatus(request.chatId)!!.callbackData
@@ -70,8 +78,8 @@ class Private(
                         awaitStatusService.clearAwaitStatus(request.chatId)
                     }
                 }
-                request.update.message().text().startsWith("@") -> executeByEnroll(request)
-                request.update.message().text().startsWith("https://t.me/") -> executeByEnroll(request)
+                request.update.message.text.startsWith("@") -> executeByEnroll(request)
+                request.update.message.text.startsWith("https://t.me/") -> executeByEnroll(request)
                 else -> executeByText(request)
             }
         }.onFailure { e ->
@@ -79,33 +87,23 @@ class Private(
             botProvider.sendErrorMessage(e)
         }
         // 记录日活用户
-        val user = request.update.message()?.from()
+        val user = request.update.message?.from
         if (user != null) footprint(user)
     }
-    private fun subscribeApprove() =  {
-        enrollService.submitApproveObservable.subscribe(
-            { (enroll, manager, isPassed) ->
-                try {
-                    val msg = recordMsgFactory.makeApproveResultMsg(enroll.createUser, enroll, isPassed)
-                    botProvider.send(msg)
-                } catch (e: Throwable) {
-                    logger.error("Private.approve.error",e)
-                    botProvider.sendErrorMessage(e)
-
-                }
-            },
-            { throwable ->
-                logger.error("Private.approve.error",throwable)
-                botProvider.sendErrorMessage(throwable)
-            },
-            {
-                logger.error("Private.approve.complete")
+    private fun subscribeApprove() = scope.launch {
+        enrollService.subscribeApproves {(enroll, _, isPassed) ->
+            runCatching {
+                val msg = recordMsgFactory.makeApproveResultMsg(enroll.createUser, enroll, isPassed)
+                botProvider.send(msg)
+            }.onFailure {
+                logger.error("Private.approve.error",it)
+                botProvider.sendErrorMessage(it)
             }
-        )
+        }
     }
 
     private fun executeByText(request: RequestService.BotPrivateRequest) {
-        val keywords = request.update.message().text()
+        val keywords = request.update.message.text
         val msg = listMsgFactory.makeListFirstPageMsg(request.chatId, keywords, 1) ?: normalMsgFactory.makeReplyMsg(
             request.chatId,
             "nothing"
@@ -117,13 +115,13 @@ class Private(
         // 人员黑名单检测
         val userBlack = blackListService.get(request.chatId)
         if (userBlack != null) {
-            val user = request.update.message().from()
-            val telegramPerson = TelegramService.TelegramPerson(request.chatId, user.username(), user.nick(), null)
+            val user = request.update.message.from
+            val telegramPerson = TelegramService.TelegramPerson(request.chatId, user.userName, user.nick(), null)
             blacklistExecute.notify(request.chatId, telegramPerson)
             return
         }
         // 获取收录内容
-        val username = request.update.message().text().replaceFirst("@", "").replaceFirst("https://t.me/", "")
+        val username = request.update.message.text.replaceFirst("@", "").replaceFirst("https://t.me/", "")
         val telegramMod = telegramService.getTelegramMod(username)
         // 收录对象黑名单检测
         val recordBlack = blackListService.get(username)
@@ -158,7 +156,7 @@ class Private(
                     telegramMod.members,
                     Date().time,
                     request.chatId,
-                    request.update.message().from().nick(),
+                    request.update.message.from.nick(),
                     false,
                     null
                 )
@@ -180,7 +178,7 @@ class Private(
                     null,
                     Date().time,
                     request.chatId,
-                    request.update.message().from().nick(),
+                    request.update.message.from.nick(),
                     false,
                     null
                 )
@@ -197,13 +195,13 @@ class Private(
 
     private fun executeByCommand(request: RequestService.BotPrivateRequest) {
         // 获取命令内容
-        val cmd = request.update.message().text().replaceFirst("/", "").replace("@${botProvider.username}", "")
+        val cmd = request.update.message.text.replaceFirst("/", "").replace("@${botProvider.username}", "")
         // 回执
         val sendMessage = when {
             cmd == "start" -> normalMsgFactory.makeStartMsg(request.chatId)
             cmd.startsWith("start ") -> executeBySuperCommand(request)
             cmd == "enroll" -> normalMsgFactory.makeReplyMsg(request.chatId, cmd)
-            cmd == "update" || cmd == "mine" -> mineMsgFactory.makeListFirstPageMsg(request.update.message().from())
+            cmd == "update" || cmd == "mine" -> mineMsgFactory.makeListFirstPageMsg(request.update.message.from)
             cmd == "setting" -> normalMsgFactory.makeReplyMsg(request.chatId, "only-group")
             cmd == "help" -> normalMsgFactory.makeReplyMsg(request.chatId, "help-private")
             cmd == "cancel" -> {
@@ -219,7 +217,7 @@ class Private(
 
     private fun executeBySuperCommand(request: RequestService.BotPrivateRequest): SendMessage {
         return try {
-            val recordUUID = request.update.message().text().replaceFirst("/start ", "")
+            val recordUUID = request.update.message.text.replaceFirst("/start ", "")
             val record = recordService.getRecord(recordUUID)!!
             recordMsgFactory.makeRecordMsg(request.chatId, record)
         } catch (e: Throwable) {
@@ -228,10 +226,10 @@ class Private(
     }
 
     private fun executeByButton(request: RequestService.BotPrivateRequest) {
-        val answer = AnswerCallbackQuery(request.update.callbackQuery().id())
+        val answer = AnswerCallbackQuery(request.update.callbackQuery.id)
         botProvider.send(answer)
 
-        val callbackData = request.update.callbackQuery().data()
+        val callbackData = request.update.callbackQuery.data
         when {
             callbackData.startsWith("enroll") || callbackData.startsWith("enroll-class") -> {
                 enrollExecute.executeByEnrollButton(EnrollExecute.Type.Enroll, request)
@@ -248,7 +246,7 @@ class Private(
             }
             callbackData.startsWith("mine") -> {
                 val pageIndex = callbackData.replace("mine:", "").toInt()
-                val user = request.update.callbackQuery().from()
+                val user = request.update.callbackQuery.from
                 val msg = mineMsgFactory.makeListNextPageMsg(user, request.messageId!!, pageIndex)
                 botProvider.send(msg)
             }
@@ -266,8 +264,8 @@ class Private(
             statusCallbackData.startsWith("feedback:") ->  {
                 val recordUUID = statusCallbackData.replace("feedback:", "")
                 val record = recordService.getRecord(recordUUID)!!
-                val user = request.update.message().from()
-                val content = request.update.message().text()
+                val user = request.update.message.from
+                val content = request.update.message.text
                 val feedback = Feedback(record, user, content)
                 requestService.emit(feedback)
                 // 清除状态
@@ -280,7 +278,7 @@ class Private(
 
     private fun footprint(user: User) {
         try {
-            userService.footprint(user.id().toLong())
+            userService.footprint(user.id.toLong())
         } catch (e: Throwable) {
             logger.warn("记录足迹失败：(${e::class.java})[${e.message}]")
         }

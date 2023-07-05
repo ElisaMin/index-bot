@@ -1,13 +1,12 @@
 package com.tgse.index.domain.service
 
-import com.pengrad.telegrambot.model.User
 import com.tgse.index.domain.repository.EnrollRepository
 import com.tgse.index.infrastructure.provider.ElasticSearchScope
-import io.reactivex.rxjava3.core.Observable
-import io.reactivex.rxjava3.subjects.BehaviorSubject
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import org.springframework.stereotype.Service
+import org.telegram.telegrambots.meta.api.objects.User
 
 @Service
 class EnrollService(
@@ -37,15 +36,14 @@ class EnrollService(
         val approve: Boolean?
     )
 
-    val submits = MutableSharedFlow<Enroll>()
-     val submitApproves = MutableSharedFlow<Triple<Enroll, User, Boolean>>()
-
-    fun subscribeApproves(onApprove:(Triple<Enroll, User, Boolean>)->Unit) = scope.launch {
+    private val submits = MutableSharedFlow<Enroll>()
+    private val submitApproves = MutableSharedFlow<Triple<Enroll, User, Boolean>>()
+    fun subscribeEnrolls(onSubmit:FlowCollector<Enroll>) = scope.launch {
+        submits.collect(onSubmit)
+    }
+    fun subscribeApproves(onApprove:FlowCollector<Triple<Enroll, User, Boolean>>) = scope.launch {
         submitApproves.collect(onApprove)
     }
-
-    private val submitApproveSubject = BehaviorSubject.create<Triple<Enroll, User, Boolean>>()
-    val submitApproveObservable: Observable<Triple<Enroll, User, Boolean>> = submitApproveSubject.distinct()
 
     fun searchEnrolls(user: User, from: Int, size: Int): Pair<MutableList<Enroll>, Long> {
         return enrollRepository.searchEnrolls(user, from, size)

@@ -1,7 +1,7 @@
 package com.tgse.index.domain.repository
 
-import com.pengrad.telegrambot.model.User
 import com.tgse.index.domain.service.EnrollService
+import org.telegram.telegrambots.meta.api.objects.User
 
 interface EnrollRepository {
     fun searchEnrolls(user: User, from: Int, size: Int): Pair<MutableList<EnrollService.Enroll>, Long>

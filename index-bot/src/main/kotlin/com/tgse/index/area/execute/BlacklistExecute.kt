@@ -19,9 +19,9 @@ class BlacklistExecute(
 ) {
 
     fun executeByBlacklistButton(request: RequestService.BotRequest) {
-        val manager = request.update.callbackQuery().from().nick()
+        val manager = request.update.callbackQuery.from.nick()
 
-        val callbackData = request.update.callbackQuery().data()
+        val callbackData = request.update.callbackQuery.data
         val callbackDataVal = callbackData.replace("blacklist:", "").split("&")
         val oper = callbackDataVal[0]
         val type = BlackListService.BlackType.valueOf(callbackDataVal[1])

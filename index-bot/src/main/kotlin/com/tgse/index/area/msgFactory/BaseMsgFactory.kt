@@ -1,11 +1,12 @@
 package com.tgse.index.area.msgFactory
 
-import com.pengrad.telegrambot.request.SendMessage
+
 import com.tgse.index.infrastructure.provider.BotProvider
 import com.tgse.index.domain.service.EnrollService
 import com.tgse.index.domain.service.RecordService
 import com.tgse.index.domain.service.ReplyService
 import com.tgse.index.domain.service.TelegramService
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import java.math.RoundingMode
 import java.text.DecimalFormat
 
@@ -14,11 +15,19 @@ abstract class BaseMsgFactory(
     protected open val botProvider: BotProvider
 ) {
 
-    fun makeReplyMsg(chatId: Long, replyType: String): SendMessage {
-        return SendMessage(
-            chatId,
-            replyService.messages[replyType]!!.replace("\\{bot.username\\}".toRegex(), botProvider.username)
-        ).disableWebPagePreview(false)
+    /**
+     * {
+     *         return SendMessage(
+     *             chatId,
+     *             replyService.messages[replyType]!!.replace("\\{bot.username\\}".toRegex(), botProvider.username)
+     *         ).disableWebPagePreview(false)
+     *     }
+     *
+     */
+    fun makeReplyMsg(chatId: Long, replyType: String): SendMessage = SendMessage().apply {
+        this.chatId = chatId.toString()
+        text = replyService.messages[replyType]!!.replace("\\{bot.username}".toRegex(), botProvider.username)
+        disableWebPagePreview = false
     }
 
     protected fun makeRecordDetail(record: RecordService.Record): String {
