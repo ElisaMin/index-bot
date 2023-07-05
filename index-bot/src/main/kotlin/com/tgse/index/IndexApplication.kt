@@ -1,14 +1,23 @@
 package com.tgse.index
 
+import com.tgse.index.infrastructure.provider.BotProvider
+import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.runApplication
+import org.springframework.context.ApplicationListener
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.event.ContextClosedEvent
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.telegram.telegrambots.bots.DefaultBotOptions
 import org.telegram.telegrambots.bots.DefaultBotOptions.ProxyType
+import org.telegram.telegrambots.meta.TelegramBotsApi
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.updatesreceivers.DefaultBotSession
 import kotlin.properties.Delegates
+import kotlin.system.exitProcess
 
 @Configuration
 @ConfigurationProperties(prefix = "bot")
@@ -38,6 +47,7 @@ class ProxyProperties {
 
 @SpringBootApplication
 @EnableScheduling
+@ComponentScan(basePackages = ["org.telegram.telegrambots.starter","com.tgse.index"])
 class IndexApplication {
     @Bean
     fun defaultBotOption(proxyProperties:ProxyProperties) = DefaultBotOptions().apply {
@@ -46,6 +56,19 @@ class IndexApplication {
             proxyHost = proxyProperties.ip
             proxyPort = proxyProperties.port
         }
+    }
+
+    val logger get() = LoggerFactory.getLogger(this::class.java)
+    @Bean
+    fun listenCloseEvent(botProvider: BotProvider,botProperties: BotProperties) = ApplicationListener<ContextClosedEvent> {
+        val logger = logger
+        logger.info("context is done ${it.source}",)
+        botProvider.destroy()
+        logger.info("bot destroyed")
+        botProvider.send(
+            SendMessage(botProperties.creator,"bot destroyed")
+        )
+//        exitProcess(1)
     }
 
 

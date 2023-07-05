@@ -39,13 +39,15 @@ class ElasticsearchProvider(
     val scope: ElasticSearchScope
 ) : AutoCloseable {
 
-    private inline fun <T> wrapError(crossinline block:()->T):T = runBlocking(scope.coroutineContext) {
-        runCatching(block).getOrElse { throw ElasticSearchException(it) }
+    private inline fun <T> wrapError(crossinline block:()->T):T = run {
+        runCatching(block).getOrElse {
+            throw ElasticSearchException(it)
+        }
     }
 
     private val logger by lazy { LoggerFactory.getLogger(this::class.java) }
     var i = 0
-    val client get() = if (i++>10) wrapError {
+    val client get() = if (i++>6) wrapError {
         throw NotImplementedError("test")
     } else {
         println("its #$i")

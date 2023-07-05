@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.filterIsInstance
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
-import org.telegram.telegrambots.meta.api.objects.Message
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.api.objects.User
 
@@ -88,8 +87,9 @@ class RequestService(
             botProvider.sendErrorMessage(throwable)
         }
     init {
-        makeCoroutine {
-            botProvider.blockUpdates(::handle)
+        botProvider.setOnAsyncUpdate {
+            logger.info("received update")
+            handle(it)
         }
     }
     private fun makeBotRequest(update: Update): BotRequest? {

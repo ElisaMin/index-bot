@@ -5,9 +5,7 @@ import com.tgse.index.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.UnsatisfiedDependencyException
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.boot.context.event.ApplicationFailedEvent
 import org.springframework.context.ApplicationEvent
 import org.springframework.context.ApplicationListener
 import org.springframework.stereotype.Component
@@ -23,7 +21,6 @@ import org.telegram.telegrambots.meta.api.objects.*
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException
-import org.telegram.telegrambots.meta.exceptions.TelegramApiValidationException
 import org.telegram.telegrambots.meta.generics.BotSession
 import org.telegram.telegrambots.starter.AfterBotRegistration
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession
@@ -31,48 +28,63 @@ import java.util.*
 import kotlin.coroutines.EmptyCoroutineContext
 
 @Component
-class EXIT(
-    val botProvider: BotProvider
-): ApplicationListener<ApplicationFailedEvent> {
-    val logger = LoggerFactory.getLogger(this::class.java)
-    override fun onApplicationEvent(event: ApplicationFailedEvent) {
-        (event.exception as? UnsatisfiedDependencyException)?.let {
-            logger.info("interface: ${it.beanName}, injectpont: ${it.injectionPoint}")
-        }
-        logger.error("${event.exception::class.simpleName} error !")
-        botProvider.destroy()
-    }
-}
-@Component
 class LISTENER: ApplicationListener<ApplicationEvent> {
     val logger = LoggerFactory.getLogger(this::class.java)
     override fun onApplicationEvent(event: ApplicationEvent) {
         logger.info("event: ${event::class.simpleName}")
     }
 }
-@Component
+@Component()
 class Bot(
     defaultBotOptions: DefaultBotOptions,
     botProperties: BotProperties,
 ):TelegramLongPollingBot(defaultBotOptions,botProperties.token) {
     override fun getBotUsername(): String = "INDEX_BOT"
+    private val logger = LoggerFactory.getLogger(botUsername)
+    init {
+        logger.info("init bot")
+    }
+    final lateinit var session: BotSession
+        private set
+    var onStart:(()->Unit)? = null
+
+    @AfterBotRegistration
+    final fun onStart(session: BotSession) {
+        this.session = session
+        println("afterBotRegistration")
+        onStart?.let {
+            it()
+        }
+    }
+
     override fun onUpdateReceived(update: Update) {
-        callback(update)
+        logger.warn("update: ${update.updateId}")
+        runCatching {
+            callback(update)
+        }.onFailure {
+            if (it is CancellationException || it is ElasticSearchException) {
+                // close spring application
+                logger.warn("exception trying exit",it)
+            } else {
+                logger.error("exception but nothing wrongs ",it)
+            }
+        }
+    }
+
+    override fun onClosing() {
+        logger.info("Bot stopping...")
+        session.let { if (it.isRunning) it.stop() }
+        logger.info("Session stopped.")
+        super.onClosing()
+        logger.info("Bot stopped.")
     }
     var callback:TelegramLongPollingBot.(Update)->Unit = {
         throw NotImplementedError("callback not set")
     }
-    val session by lazy {
-        TelegramBotsApi(DefaultBotSession::class.java).registerBot(this)
-    }
 //    final var isReady = false
 //        private set
 
-    @AfterBotRegistration
-    fun afterBotRegistration() {
-//        isReady = true
-        println("afterBotRegistration")
-    }
+
 }
 @Component
 class BotProvider(
@@ -83,41 +95,26 @@ class BotProvider(
 ): BotLifecycle() {
 
     private val logger = LoggerFactory.getLogger(this::class.java)
-
     val username: String by lazy {
         bot.execute(GetMe()).userName
     }
-
-    init {
-        CoroutineScope(EmptyCoroutineContext,).launch(start = CoroutineStart.ATOMIC) {
-
-            while (true) {
-                delay(1000)
-//                LoggerFactory.getLogger(this::class.java).warn("RUNNING $")
-            }
-        }.start()
-    }
-
-    private val updatesFlow  = MutableSharedFlow<Update>().run {
-        setCommands()
+    fun setOnAsyncUpdate(update: suspend CoroutineScope.(Update)->Unit) {
         bot.callback = {
-            runBlocking {
-                withCoroutine {
-                    emit(it)
-                }
+            ensureActive()
+            makeCoroutine {
+                update(it)
             }
         }
-        if (!bot.session.isRunning)
-        bot.session.start()
-        send(SendMessage(botProperties.creator, "Bot started."))
-        logger.info("Bot started.")
-        this
     }
-
-    suspend fun blockUpdates(block:suspend (Update)->Unit) {
-        updatesFlow.collect(block)
+    init {
+        bot.onStart = {
+            setCommands()
+            makeCoroutine {
+                send(SendMessage(botProperties.creator, "Bot started."))
+            }
+            logger.info("Bot started.")
+        }
     }
-
 
     private fun setCommands() {
         try {
@@ -141,10 +138,6 @@ class BotProvider(
         } catch (e: Throwable) {
             sendErrorMessage(e)
         }
-    }
-
-    init {
-        logger.info("Bot ready.")
     }
 
 //    private final inline fun <R> catchApiException(crossinline action:()->R):R? {
@@ -232,8 +225,6 @@ class BotProvider(
     }
 
     override fun destroy() {
-        bot.session.let { if (it.isRunning) it.stop() }
-        bot.onClosing()
         pool.shutdownNow()
         super.destroy()
     }

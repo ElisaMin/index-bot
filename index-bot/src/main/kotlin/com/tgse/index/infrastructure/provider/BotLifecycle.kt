@@ -31,8 +31,11 @@ abstract class BotLifecycle: CoroutineScope by CoroutineScope(userRequestDispatc
                 isDaemon = true
             }
         }
+        //handle error
         @JvmStatic
-        protected val userRequestDispatcher = pool.asCoroutineDispatcher()
+        protected val userRequestDispatcher = pool.asCoroutineDispatcher() + CoroutineExceptionHandler { _, throwable ->
+            logger.error("CoroutineExceptionHandler got $throwable")
+        }
 //        @JvmStatic
 //        val userRequestDispatcher = Dispatchers.IO
     }
