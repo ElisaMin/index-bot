@@ -49,10 +49,9 @@ class Private(
     }
 
     private fun subscribeUpdate() {
-        requestService.requestObservable.subscribe(
+        requestService.privates.subscribe(
             { request ->
                 try {
-                    if (request !is RequestService.BotPrivateRequest) return@subscribe
                     // 输入状态
                     botProvider.sendTyping(request.chatId)
                     // 回执
@@ -100,7 +99,7 @@ class Private(
         enrollService.submitApproveObservable.subscribe(
             { (enroll, manager, isPassed) ->
                 try {
-                    val msg = recordMsgFactory.makeApproveResultMsg(enroll.createUser, enroll, isPassed)
+                    val msg = recordMsgFactory.makeApproveResultMsgPrivate(enroll.createUser, enroll, isPassed)
                     botProvider.send(msg)
                 } catch (e: Throwable) {
                     botProvider.sendErrorMessage(e)

@@ -35,7 +35,7 @@ class RecordMsgFactory(
     }
 
     fun makeApproveMsg(chatId: Long, enroll: EnrollService.Enroll): SendMessage {
-        val detail = makeApproveRecordDetail(enroll)
+        val detail = makeApproveDetail(enroll, isRecording = true, showId = true)
         val keyboard = makeApproveKeyboardMarkup(enroll.uuid)
         return SendMessage(chatId, detail)
             .replyMarkup(keyboard)
@@ -44,7 +44,7 @@ class RecordMsgFactory(
     }
 
     fun makeApproveChangeClassificationMsg(chatId: Long, enroll: EnrollService.Enroll): SendMessage {
-        val detail = makeApproveRecordDetail(enroll)
+        val detail = makeApproveDetail(enroll, isRecording = true)
         val keyboard = makeInlineKeyboardMarkup(enroll.uuid,"enroll-class")
         val msg = SendMessage(chatId, detail)
         return msg.parseMode(ParseMode.HTML).disableWebPagePreview(true).replyMarkup(keyboard)
@@ -63,15 +63,15 @@ class RecordMsgFactory(
         manager: User,
         isPassed: Boolean
     ): SendMessage {
-        val detail = makeApproveResultDetail(enroll, manager, isPassed)
+        val detail = makeApproveDetail(enroll, manager, isPassed = isPassed, isRecording = true, showId = true)
         val keyboard = makeJoinBlacklistKeyboardMarkup(enroll)
         val msg = SendMessage(chatId, detail)
         return if (isPassed) msg.parseMode(ParseMode.HTML).disableWebPagePreview(true)
         else msg.parseMode(ParseMode.HTML).disableWebPagePreview(true).replyMarkup(keyboard)
     }
 
-    fun makeApproveResultMsg(chatId: Long, enroll: EnrollService.Enroll, isPassed: Boolean): SendMessage {
-        val detail = makeApproveResultDetail(enroll, isPassed)
+    fun makeApproveResultMsgPrivate(chatId: Long, enroll: EnrollService.Enroll, isPassed: Boolean): SendMessage {
+        val detail = makeApproveDetail(enroll, isRecording = false, isPassed = isPassed,)
         val msg = SendMessage(chatId, detail)
         return msg.parseMode(ParseMode.HTML).disableWebPagePreview(true)
     }
@@ -94,24 +94,41 @@ class RecordMsgFactory(
         return EditMessageReplyMarkup(chatId, messageId).replyMarkup(InlineKeyboardMarkup())
     }
 
-    private fun makeApproveRecordDetail(enroll: EnrollService.Enroll): String {
-        return makeRecordDetail(enroll) + "\n<b>提交者</b>： ${enroll.createUserNick}\n"
-    }
+    private fun makeApproveDetail(
+        enroll: EnrollService.Enroll,
+        checker: User?=null,
+        isPassed: Boolean?=null,
+        showId:Boolean =false,
+        isRecording: Boolean = true
+    ): String = buildString {
 
-    private fun makeApproveResultDetail(enroll: EnrollService.Enroll, checker: User, isPassed: Boolean): String {
-        val result = if (isPassed) "通过" else "未通过"
-        return makeRecordDetail(enroll) +
-                "\n<b>提交者</b>： ${enroll.createUserNick}" +
-                "\n<b>审核者</b>： ${checker.nick()}" +
-                "\n<b>审核结果</b>： $result\n"
-    }
+        if (isRecording) {
+            append(makeRecordDetail(enroll))
+            appendLine()
+        }
+        //language=HTML
+        var submitter =  """<code>${enroll.createUserNick}</code>"""
+        enroll.username?.let { "https://t.me/$it" }?.let {
+            //language=HTML
+            submitter = """<a href="$it">$submitter</a>"""
+        }
+        //language=HTML
+        append("""<b>提交者</b>： $submitter""")
+        if (showId) {
+            //language=HTML
+            append(""" | <i>ID： <code>${enroll.createUser}</code></i>""")
+        }
+        appendLine()
+        if (checker != null) {
+            //language=HTML
+            appendLine("<b>审核者</b>： <code>${checker.nick()}</code>")
+        }
+        if (isPassed!=null) {
+            //language=HTML
+            appendLine("<b>审核结果</b>： ${if (!isPassed) "未" else ""}通过")
+        }
 
-    private fun makeApproveResultDetail(enroll: EnrollService.Enroll, isPassed: Boolean): String {
-        val result = if (isPassed) "通过" else "未通过"
-        return makeRecordDetail(enroll) +
-                "\n<b>审核结果</b>： $result\n"
     }
-
     private fun makeInlineKeyboardMarkup(id: String, oper: String): InlineKeyboardMarkup {
         // 每行countInRow数量个按钮
         val countInRow = 3

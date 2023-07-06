@@ -47,10 +47,9 @@ class Approve(
     }
 
     private fun subscribeUpdate() {
-        requestService.requestObservable.subscribe(
+        requestService.approves.subscribe(
             { request ->
                 try {
-                    if (request !is RequestService.BotApproveRequest) return@subscribe
                     // 回执
                     val commandRegexResult =
                         if (request.update.message()?.text() == null) null

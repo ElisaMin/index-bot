@@ -5,8 +5,10 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.pengrad.telegrambot.TelegramBot
 import com.pengrad.telegrambot.UpdatesListener
 import com.pengrad.telegrambot.model.BotCommand
+import com.pengrad.telegrambot.model.Chat
 import com.pengrad.telegrambot.model.Update
 import com.pengrad.telegrambot.model.request.ParseMode
+import com.pengrad.telegrambot.request.GetChat
 import com.pengrad.telegrambot.request.GetMe
 import com.pengrad.telegrambot.request.SendMessage
 import com.pengrad.telegrambot.request.SetMyCommands
@@ -23,6 +25,7 @@ import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import org.apache.commons.lang3.concurrent.BasicThreadFactory
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.ExitCodeGenerator
 import org.springframework.boot.SpringApplication
 import org.springframework.context.ConfigurableApplicationContext
@@ -45,7 +48,9 @@ import kotlin.jvm.Throws
 abstract class BotUpdateProvider(
     private val botProperties: BotProperties,
     private var proxyProperties: ProxyProperties?,
-    private val app: ConfigurableApplicationContext
+    private val app: ConfigurableApplicationContext,
+    private val approveChatId: Long,
+    private val bulletinChatId: Long
 ): SmartLifecycle {
     private val disposable = CompositeDisposable()
     private val logger = LoggerFactory.getLogger(this::class.java)
@@ -95,6 +100,7 @@ abstract class BotUpdateProvider(
         bot = TelegramBot.Builder(botProperties.token).okHttpClient(httpClient).build()
         setErrorHandler()
         setName()
+        checkChats()
         setCommands()
         setListener()
         sendAdminMessage("bot started")
@@ -130,7 +136,7 @@ abstract class BotUpdateProvider(
     }
 
     final override fun isRunning(): Boolean {
-        return pool.isShutdown && pool.isTerminated
+        return pool.isShutdown
     }
     final override fun getPhase(): Int  = -1
     final override fun isAutoStartup(): Boolean = true
@@ -152,6 +158,31 @@ abstract class BotUpdateProvider(
     @Suppress("NOTHING_TO_INLINE")
     private inline fun setErrorHandler() {
         RxJavaPlugins.setErrorHandler(::onError)
+    }
+    @Suppress("NOTHING_TO_INLINE")
+    private inline fun infoOf(id:Long,vararg types:Chat.Type): String {
+        bot.execute(GetChat(id)).let {
+            require(it.isOk) {
+                it.description()
+            }
+            val chat = it.chat()
+            require(chat.type() in types) {
+                "chat $id is not a ${types.joinToString(",") { it.name }}"
+            }
+            require(chat.id()==id) {
+                "id not match: input `$id` != received `${chat.id()}`"
+            }
+            return chat.title()!!
+        }
+    }
+    @Suppress("NOTHING_TO_INLINE")
+    private inline fun checkChats() {
+        val approveGroup = infoOf(approveChatId, Chat.Type.group, Chat.Type.supergroup)
+        val bulletinChannel = infoOf(bulletinChatId, Chat.Type.channel)
+        logger.info("checked approve group: $approveGroup")
+        logger.info("checked bulletin channel: $bulletinChannel")
+
+
     }
     @Suppress("NOTHING_TO_INLINE")
     private inline fun setName() {
