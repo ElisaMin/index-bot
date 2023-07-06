@@ -44,11 +44,7 @@ RUN --mount=type=cache,target=/usr/src/index-bot/.gradle \
     --mount=type=cache,target=/usr/src/index-bot/build \
     cp build/libs/telegram-index-bot-2.0.0-next.jar /opt/index-bot/index-bot.jar
 
-FROM amd64/eclipse-temurin:17-jre-alpine as run
-
-LABEL name="index-bot"
-LABEL version="2.0.0-next"
-
+FROM ghcr.io/graalvm/native-image:muslib-ol9-java17-22.3.2 as test
 COPY --from=build /opt/index-bot /opt/index-bot
 
 WORKDIR /opt/index-bot

@@ -28,7 +28,7 @@ services:
 
     container_name: index-bot
 
-    image: index-bot:lastest
+    image: index-bot:native-test
     build: .
 
     depends_on:
@@ -42,3 +42,4 @@ services:
       - ./compose-root/data:/opt/index-bot/data
       - ./compose-root/lang:/opt/index-bot/lang
       - ./compose-root/application.yaml:/opt/index-bot/application.yaml
+      - ./compose-root/refl:/out/refl/

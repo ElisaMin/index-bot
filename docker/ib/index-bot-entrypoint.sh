@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set +e
 
 function parse_yaml {
@@ -34,7 +33,8 @@ function sendCreator {
 
    echo .
 }
+
 sendCreator "call_by_entrypoint"
-java $JVM_OPTS -jar index-bot.jar --spring.config.location=$APP_CONFIG
+java "$JVM_OPTS" -agentlib:native-image-agent=config-merge-dir=/out/refl/$(date +%m%d%a%H%M%S) -jar index-bot.jar --spring.config.location="$APP_CONFIG"
 sendCreator "exited_$?_trying_to_restart_maybe"
-exit 500
+exit 255
