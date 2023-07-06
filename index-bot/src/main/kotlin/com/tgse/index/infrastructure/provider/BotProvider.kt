@@ -6,6 +6,7 @@ import com.pengrad.telegrambot.request.*
 import com.pengrad.telegrambot.response.*
 import com.tgse.index.BotProperties
 import com.tgse.index.ProxyProperties
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.stereotype.Component
@@ -15,26 +16,39 @@ import java.util.*
 class BotProvider(
     botProperties: BotProperties,
     proxyProperties: ProxyProperties,
+    app: ConfigurableApplicationContext,
+    @Value("\${group.approve.id}")
+    private val approveGroupChatId: Long,
+    @Value("\${channel.bulletin.id}")
+    bulletinChatId: Long,
     @Value("\${secretary.autoDeleteMsgCycle}")
     private val autoDeleteMsgCycle: Long,
-    @Value("\${group.approve.id}")
-    app: ConfigurableApplicationContext,
-    private val approveGroupChatId: Long,
-): BotUpdateProvider(botProperties,proxyProperties,app) {
+): BotUpdateProvider(botProperties,proxyProperties,app,approveGroupChatId,bulletinChatId) {
 
-    fun send(message: SendMessage): SendResponse {
-        return bot.execute(message)
+    private val executingLogger = LoggerFactory.getLogger("BOT_RESULT")
+
+    private inline fun <R:BaseResponse?> wrap(crossinline block: () -> R): R & Any = block().let {
+        if (!it!!.isOk) {
+            executingLogger.warn(
+                "${it.errorCode()}",IllegalStateException(it.description())
+            )
+        }
+        it
     }
 
-    fun sendDeleteMessage(chatId: Long, messageId: Int): BaseResponse {
+    fun send(message: SendMessage)=wrap {
+        bot.execute(message)
+    }
+
+    fun sendDeleteMessage(chatId: Long, messageId: Int) = wrap {
         val deleteMessage = DeleteMessage(chatId, messageId)
-        return bot.execute(deleteMessage)
+        bot.execute(deleteMessage)
     }
 
     /**
      * 发送自毁消息
      */
-    fun sendAutoDeleteMessage(message: SendMessage): BaseResponse {
+    fun sendAutoDeleteMessage(message: SendMessage) = wrap {
         val sendResponse = send(message)
         val timer = Timer("auto-delete-message", true)
         val timerTask = object : TimerTask() {
@@ -49,19 +63,19 @@ class BotProvider(
             }
         }
         timer.schedule(timerTask, autoDeleteMsgCycle * 1000)
-        return sendResponse
+        sendResponse
     }
 
-    fun send(answer: AnswerCallbackQuery): BaseResponse {
-        return bot.execute(answer)
+    fun send(answer: AnswerCallbackQuery) = wrap  {
+        bot.execute(answer)
     }
 
-    fun send(message: EditMessageText): BaseResponse {
-        return bot.execute(message)
+    fun send(message: EditMessageText) = wrap {
+        bot.execute(message)
     }
 
-    fun send(message: EditMessageReplyMarkup): BaseResponse {
-        return bot.execute(message)
+    fun send(message: EditMessageReplyMarkup) = wrap {
+        bot.execute(message)
     }
 
     fun sendDelay(message: EditMessageReplyMarkup, delay: Long) {
@@ -78,39 +92,34 @@ class BotProvider(
         timer.schedule(timerTask, delay)
     }
 
-    fun send(action: GetChat): GetChatResponse {
-        return bot.execute(action)
+    fun send(action: GetChat) = wrap { bot.execute(action) }
+
+    fun send(action: GetChatMemberCount) = wrap {
+        bot.execute(action)
     }
 
-    fun send(action: GetChatMemberCount): GetChatMemberCountResponse {
-        return bot.execute(action)
+    fun send(action: GetChatAdministrators) = wrap {
+        bot.execute(action)
     }
 
-    fun send(action: GetChatAdministrators): GetChatAdministratorsResponse {
-        return bot.execute(action)
-    }
-
-    fun sendTyping(chatId: Long) {
+    fun sendTyping(chatId: Long) = wrap {
         val chatAction = SendChatAction(chatId, ChatAction.typing)
         send(chatAction)
     }
 
-    private fun send(action: SendChatAction): BaseResponse {
-        return bot.execute(action)
+    private fun send(action: SendChatAction) = wrap {
+        bot.execute(action)
     }
 
     fun getApproveChatMemberSafe(memberId:Long) =
         bot.runCatching {
-            execute(
-                GetChatMember(
-                    approveGroupChatId,
-                    memberId
-                )
-            )?.chatMember()
+            val result = wrap { execute(
+                GetChatMember(approveGroupChatId, memberId))
+            }
+            result.chatMember()!!
         }.onFailure { e -> e
             .printStackTrace()
         }.map {
-            if (it==null) return@map null
             if (it.user().isBot) return@map null
             val status = it.status()
             if (status == ChatMember.Status.restricted) {
