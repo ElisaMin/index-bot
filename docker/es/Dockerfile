@@ -45,7 +45,6 @@ RUN chmod +x /usr/share/elasticsearch/bin/elasticsearch
 ENV PATH /usr/share/elasticsearch/bin:$PATH
 ENV ES_JAVA_OPTS="-Xms512m -Xmx512m"
 ENV ES_TMPDIR /usr/share/elasticsearch/data/tmp
-        /usr/share/elasticsearch/data/tmp \
 
 VOLUME ["/usr/share/elasticsearch/data"]
 
