@@ -20,33 +20,40 @@ abstract class BaseMsgFactory(
             replyService.messages[replyType]!!.replace("\\{bot.username\\}".toRegex(), botProvider.username)
         ).disableWebPagePreview(false)
     }
-
-    protected fun makeRecordDetail(record: RecordService.Record): String {
-        val link = if (record.username != null) "https://t.me/${record.username}" else record.link
-        val detailSB = StringBuffer()
-        detailSB.append("<b>标题</b>： <a href=\"$link\">${record.title}</a>\n")
-        detailSB.append("<b>标签</b>： ${if (record.tags == null) "暂无" else record.tags.joinToString(" ")}\n")
-        detailSB.append("<b>分类</b>： ${record.classification ?: "暂无"}\n")
-        detailSB.append("<b>简介</b>：\n")
-        val description = if (record.description == null) ""
-        else record.description.replace("<", "&lt;").replace(">", "&gt;") + "\n"
-        detailSB.append(description)
-        return detailSB.toString()
+    private fun makeDetail(
+        title: String,
+        tags: Collection<String>?,
+        classification: String?,
+        description: String?,
+        link: String?,
+        username: String?
+    ) = buildString {
+        val theLink = if (username != null) "https://t.me/$username" else link!!
+        appendLine("""<b>标题</b>： <a href="$theLink">$title</a>""")
+        appendLine("<b>标签</b>： ${tags?.takeIf { it.isNotEmpty() }?.joinToString(" ") ?: "暂无"}")
+        appendLine("<b>分类</b>： ${classification ?: "暂无"}")
+        appendLine("<b>简介</b>：")
+        appendLine(description?.run { replace("<", "&lt;").replace(">", "&gt;") } ?: "")
+//        appendLine("<b>链接</b>： <a href=\"$theLink\">$theLink</a>")
     }
 
-    protected fun makeRecordDetail(enroll: EnrollService.Enroll): String {
-        val link = if (enroll.username != null) "https://t.me/${enroll.username}" else enroll.link
-        val detailSB = StringBuffer()
-        detailSB.append("<b>标题</b>： <a href=\"$link\">${enroll.title}</a>\n")
-        detailSB.append("<b>标签</b>： ${if (enroll.tags == null) "暂无" else enroll.tags.joinToString(" ")}\n")
-        detailSB.append("<b>分类</b>： ${enroll.classification ?: "暂无"}\n")
-        detailSB.append("<b>简介</b>：\n")
-        val description = if (enroll.description == null) ""
-        else enroll.description.replace("<", "&lt;").replace(">", "&gt;") + "\n"
-        detailSB.append(description)
-        return detailSB.toString()
-    }
+    protected fun makeRecordDetail(record: RecordService.Record): String = makeDetail(
+        record.title,
+        record.tags,
+        record.classification,
+        record.description,
+        record.link,
+        record.username
+    )
 
+    protected fun makeRecordDetail(enroll: EnrollService.Enroll) = makeDetail(
+        enroll.title,
+        enroll.tags,
+        enroll.classification,
+        enroll.description,
+        enroll.link,
+        enroll.username
+    )
     /**
      * 整理列表内容
      */

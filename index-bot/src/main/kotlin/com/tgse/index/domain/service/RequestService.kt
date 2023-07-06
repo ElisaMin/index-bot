@@ -25,7 +25,6 @@ class RequestService(
 
     open class BotRequest(
         open val chatId: Long?,
-        open val chatType: Chat.Type?,
         open val messageId: Int?,
         open val update: Update
     )
@@ -36,7 +35,6 @@ class RequestService(
         override val update: Update
     ) : BotRequest(
         chatId,
-        Chat.Type.Private,
         messageId,
         update
     )
@@ -47,7 +45,6 @@ class RequestService(
         override val update: Update
     ) : BotRequest(
         chatId,
-        Chat.Type.group,
         messageId,
         update
     )
@@ -58,16 +55,17 @@ class RequestService(
         override val update: Update
     ) : BotRequest(
         chatId,
-        Chat.Type.group,
         messageId,
         update
     )
 
     private val logger = LoggerFactory.getLogger(this::class.java)
     private val requestSubject = BehaviorSubject.create<BotRequest>()
-    val requestObservable: Observable<BotRequest> = requestSubject.distinct()
-    val feedbackSubject = BehaviorSubject.create<Triple<RecordService.Record, User, String>>()
-    val feedbackObservable: Observable<Triple<RecordService.Record, User, String>> = feedbackSubject.distinct()
+    val approves = requestSubject.distinct().filter { it is BotApproveRequest }.map { it as BotApproveRequest } // 管理员信息
+    val groups = requestSubject.distinct().filter { it is BotGroupRequest }.map { it as BotGroupRequest } // 群组信息
+    val privates = requestSubject.distinct().filter { it is BotPrivateRequest }.map { it as BotPrivateRequest } // 私聊信息
+    final val feedbackSubject = BehaviorSubject.create<Triple<RecordService.Record, User, String>>()
+    final val feedbackObservable: Observable<Triple<RecordService.Record, User, String>> = feedbackSubject.distinct()
 
     init {
         subscribeUpdate()

@@ -36,10 +36,9 @@ class Group(
     }
 
     private fun subscribeUpdate() {
-        requestService.requestObservable.subscribe(
+        requestService.groups.subscribe(
             { request ->
                 try {
-                    if (request !is RequestService.BotGroupRequest) return@subscribe
                     // 回执
                     when {
                         request.update.callbackQuery() != null ->{
