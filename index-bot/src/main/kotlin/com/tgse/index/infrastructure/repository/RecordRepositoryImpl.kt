@@ -19,11 +19,9 @@ import org.elasticsearch.search.sort.SortOrder
 import org.elasticsearch.xcontent.XContentBuilder
 import org.elasticsearch.xcontent.XContentFactory
 import org.elasticsearch.xcontent.XContentType
-import org.springframework.retry.annotation.Retryable
 import org.springframework.stereotype.Repository
 
 @Repository
-@Retryable
 class RecordRepositoryImpl(
     private val elasticsearchProvider: ElasticsearchProvider
 ) : RecordRepository {
