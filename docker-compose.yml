@@ -21,8 +21,12 @@ services:
       retries: 60
 
   index-bot:
+    deploy:
+      restart_policy:
+        max_attempts: 10
+        condition: any
+
     container_name: index-bot
-    restart: always
 
     image: index-bot:lastest
     build: .
