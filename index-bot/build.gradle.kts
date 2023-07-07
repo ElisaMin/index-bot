@@ -1,16 +1,20 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
     id("org.springframework.boot") version "3.1.1"
     id("io.spring.dependency-management") version "1.1.0"
-    kotlin("jvm") version "1.8.21"
-    kotlin("plugin.spring") version "1.8.21"
+    kotlin("jvm") version "1.9.0"
+    kotlin("plugin.spring") version "1.9.0"
 }
 
 group = "com.tgse"
 version = "2.0.0-next"
-java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+kotlin {
+    jvmToolchain(20)
+    compilerOptions {
+        languageVersion = KotlinVersion.KOTLIN_2_1
+        freeCompilerArgs = listOf("-Xopt-in=kotlin.RequiresOptIn","-Xno-call-assertions","-Xno-receiver-assertions","-Xno-param-assertions")
+    }
 }
 repositories {
     mavenCentral {
@@ -50,20 +54,6 @@ dependencies {
    implementation("org.elasticsearch.client:elasticsearch-rest-high-level-client:$esv")
 
    testImplementation("org.springframework.boot:spring-boot-starter-test")
-}
-
-tasks.withType<KotlinCompile> {
-    kotlinOptions {
-        freeCompilerArgs = listOf("-Xjsr305=strict","-Xno-call-assertions","-Xno-receiver-assertions","-Xno-param-assertions")
-        jvmTarget = "17"
-    }
-}
-kotlin {
-    sourceSets.all {
-       languageSettings {
-           languageVersion = "2.0"
-       }
-   }
 }
 tasks.withType<Test> {
    useJUnitPlatform()
