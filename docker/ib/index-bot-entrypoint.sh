@@ -41,7 +41,7 @@ function sendCreator {
 temp_file=$(mktemp)
 refl_dir=/out/refl/$(date +%m%d%a%H%M%S)/
 mkdir $refl_dir
-sendCreator "call_by_entrypoint"
+sendCreator "Index-bot Entry Point Started."
 if java -agentlib:native-image-agent=config-merge-dir=$refl_dir --version 2> >(tee "$temp_file") ; then
    rm -rf $refl_dir/*
    java -agentlib:native-image-agent=config-merge-dir=$refl_dir -jar index-bot.jar --spring.config.location="$APP_CONFIG" 2> >(tee "$temp_file")
