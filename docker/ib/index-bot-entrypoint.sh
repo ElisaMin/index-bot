@@ -37,12 +37,16 @@ function sendCreator {
   message_text="\"${message_text}\""
   # send message to api
   curl -s -X POST -H "Content-Type: application/json" -d "{\"chat_id\": \"${bot_creator}\", \"text\": ${message_text}}" "https://api.telegram.org/bot${bot_token}/sendMessage" >>/dev/null
-
 }
 temp_file=$(mktemp)
+refl_dir=/out/refl/$(date +%m%d%a%H%M%S)/
+mkdir $refl_dir
 sendCreator "call_by_entrypoint"
+if java -agentlib:native-image-agent=config-merge-dir=$refl_dir --version 2> >(tee "$temp_file") ; then
+   rm -rf $refl_dir/*
+   java -agentlib:native-image-agent=config-merge-dir=$refl_dir -jar index-bot.jar --spring.config.location="$APP_CONFIG" 2> >(tee "$temp_file")
+fi
 
-java -XX:+TraceClassLoading "$JVM_OPTS" -jar index-bot.jar --spring.config.location="$APP_CONFIG" 2> >(tee "$temp_file")
 exit_msg="exit: status_code=$?"
 exit_msg+=$'\n'$(cat "$temp_file")
 sendCreator "$exit_msg"
