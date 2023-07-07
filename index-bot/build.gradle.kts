@@ -35,8 +35,7 @@ dependencies {
 
    implementation("org.springframework.boot:spring-boot-starter")
    annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
-
-   implementation("com.google.guava:guava:31.1-jre")
+   implementation("com.google.guava:guava:32.1.1-jre")
    implementation("org.dom4j:dom4j:2.1.4")
    implementation("org.jsoup:jsoup:1.16.1")
    implementation("org.apache.commons:commons-text:1.10.0")
